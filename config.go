@@ -66,6 +66,7 @@ type Config struct {
 	AppID          string       `yaml:"appID" mapstructure:"appID" json:"appID"`
 	AppName        string       `yaml:"appName" mapstructure:"appName" json:"appName"`
 	Logger         LoggerConfig `yaml:"logger" mapstructure:"logger" json:"logger"`
+	Service        any          `yaml:"service" mapstructure:"service" json:"service"`
 }
 
 func (c *Config) defaultValues() error {
@@ -183,7 +184,9 @@ func (c *Config) readInConfig() error {
 	return nil
 }
 
-func DefaultConfig(path string) error {
+func DefaultConfig(object any, path string) error {
+	instance.Service = object
+
 	if err := instance.defaultValues(); err != nil {
 		return err
 	}
@@ -194,7 +197,7 @@ func GetConfig() *Config {
 	return instance
 }
 
-func InitConfig() error {
+func InitConfig(object any) error {
 	if CfgFile == "" {
 		CfgFile = os.Getenv("CONFIG_FILE")
 	}
@@ -213,6 +216,8 @@ func InitConfig() error {
 	if err = instance.defaultValues(); err != nil {
 		return fmt.Errorf("default values: %s", err)
 	}
+
+	instance.Service = object
 
 	return nil
 }

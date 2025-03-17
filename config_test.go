@@ -5,7 +5,15 @@ import (
 )
 
 func TestDefaultConfig(t *testing.T) {
-	if err := DefaultConfig("."); err != nil {
+	obj := struct {
+		Username string `yaml:"username"`
+		Password string `yaml:"password"`
+	}{
+		Username: "jhon",
+		Password: "admin",
+	}
+
+	if err := DefaultConfig(obj, "."); err != nil {
 		t.Errorf("Error creating default config: %v", err)
 	}
 }
