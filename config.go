@@ -185,6 +185,10 @@ func (c *Config) readInConfig() error {
 }
 
 func DefaultConfig(object any, path string) error {
+	if object == nil {
+		return fmt.Errorf("need configuration object")
+	}
+
 	instance.Service = object
 
 	if err := instance.defaultValues(); err != nil {
@@ -198,6 +202,10 @@ func GetConfig() *Config {
 }
 
 func InitConfig(object any) error {
+	if object == nil {
+		return fmt.Errorf("need configuration object")
+	}
+
 	if CfgFile == "" {
 		CfgFile = os.Getenv("CONFIG_FILE")
 	}
