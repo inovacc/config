@@ -17,3 +17,19 @@ func TestDefaultConfig(t *testing.T) {
 		t.Errorf("Error creating default config: %v", err)
 	}
 }
+
+func TestConfigContext(t *testing.T) {
+	obj := struct {
+		Username string `yaml:"username"`
+		Password string `yaml:"password"`
+	}{
+		Username: "jhon",
+		Password: "admin",
+	}
+
+	if err := InitConfigContext(obj); err != nil {
+		t.Errorf("Error creating default config: %v", err)
+	}
+
+	t.Log(GetConfigContext().Value("config"))
+}

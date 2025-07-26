@@ -2,18 +2,19 @@ package config
 
 import (
 	"bytes"
+	"context"
 	"fmt"
-	"github.com/fsnotify/fsnotify"
-	"github.com/google/uuid"
-	"github.com/inovacc/logger"
-	"github.com/spf13/afero"
-	"github.com/spf13/viper"
-	"gopkg.in/yaml.v3"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/fsnotify/fsnotify"
+	"github.com/google/uuid"
+	"github.com/spf13/afero"
+	"github.com/spf13/viper"
+	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -56,6 +57,7 @@ type LoggerConfig struct {
 }
 
 type Config struct {
+	ctx            context.Context
 	fs             afero.Fs
 	configName     string
 	configFile     string
@@ -101,18 +103,7 @@ func (c *Config) defaultValues() error {
 		return fmt.Errorf("unknown log level: %s", c.Logger.LogLevel)
 	}
 
-	if c.Logger.LogFormat == "" {
-		c.Logger.LogFormat = "json"
-	}
-
-	logger.NewLoggerWithJSONRotator(logger.NewRotatorHandler(
-		instance.Logger.FileName,
-		instance.Logger.MaxSize,
-		instance.Logger.MaxAge,
-		instance.Logger.MaxBackups,
-		instance.Logger.LocalTime,
-		instance.Logger.Compress,
-	), opts)
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, opts)))
 
 	return nil
 }
@@ -201,7 +192,15 @@ func GetConfig() *Config {
 	return instance
 }
 
-func InitConfig(object any) error {
+func GetConfigContext() context.Context {
+	return context.WithValue(instance.ctx, "config", instance)
+}
+
+func InitConfigContext(object any) error {
+	return InitConfig(context.Background(), object)
+}
+
+func InitConfig(ctx context.Context, object any) error {
 	if object == nil {
 		return fmt.Errorf("need configuration object")
 	}
@@ -226,6 +225,7 @@ func InitConfig(object any) error {
 	}
 
 	instance.Service = object
+	instance.ctx = ctx
 
 	return nil
 }
