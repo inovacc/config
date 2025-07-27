@@ -19,7 +19,7 @@ func TestDefaultConfig(t *testing.T) {
 }
 
 func TestSetServiceConfig(t *testing.T) {
-	err := SetServiceConfig(&customService{}, testFile)
+	err := InitServiceConfig(&customService{}, testFile)
 	require.NoError(t, err)
 
 	cfg, err := GetServiceConfig[*customService]()

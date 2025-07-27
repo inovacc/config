@@ -33,7 +33,7 @@ type Config struct {
 	Service    any    `yaml:"service" mapstructure:"service"`
 }
 
-// SetServiceConfig sets the service-specific configuration struct into the global config.
+// InitServiceConfig sets the service-specific configuration struct into the global config.
 //
 // This function is intended to allow services to register their own configuration type,
 // which is stored in the generic `Service` field of the global configuration.
@@ -48,11 +48,11 @@ type Config struct {
 //		Mode string
 //	}
 //
-//	core.SetServiceConfig(&MyServiceConfig{
+//	core.InitServiceConfig(&MyServiceConfig{
 //		Port: 8080,
 //		Mode: "debug",
 //	}, "config.yaml")
-func SetServiceConfig(v any, configPath string) error {
+func InitServiceConfig(v any, configPath string) error {
 	afs := afero.NewOsFs()
 
 	configFile, err := filepath.Abs(configPath)
@@ -79,7 +79,7 @@ func SetServiceConfig(v any, configPath string) error {
 }
 
 // GetServiceConfig retrieves the service-specific configuration previously registered
-// using SetServiceConfig. It uses generics to ensure type safety.
+// using InitServiceConfig. It uses generics to ensure type safety.
 //
 // It returns the configuration as the expected type `T`, or an error if the stored type
 // does not match the expected type.

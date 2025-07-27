@@ -1,5 +1,28 @@
 [![CI/CD](https://github.com/dyammarcano/config/actions/workflows/ci.yml/badge.svg)](https://github.com/dyammarcano/config/actions/workflows/ci.yml)
 
+# Preparar un config nuevo
+
+```go
+package main
+
+import (
+	"log"
+
+	"github.com/dyammarcano/config"
+)
+
+type ServiceConfig struct {
+	Port int `json:"port" yaml:"port"`
+}
+
+func main() {
+	if err := config.DefaultConfig[ServiceConfig]("config.yaml"); err != nil {
+		log.Fatalf("failed to set config: %v", err)
+	}
+}
+
+```
+
 # Como usar
 
 ```go
@@ -21,7 +44,9 @@ func main() {
 		Port: 8080,
 	}
 
-	config.SetServiceConfig(svc, "config.yaml")
+	if err := config.InitServiceConfig(svc, "config.yaml"); err != nil {
+		log.Fatalf("failed to set config: %v", err)
+	}
 
 	cfg, err := config.GetServiceConfig[*ServiceConfig]()
 	if err != nil {
@@ -36,13 +61,14 @@ func main() {
 
 ```text
 github.com/dyammarcano/config/
-├── core/
-│   ├── config.go          # Config base, InitConfig, registro de extensiones
-│   ├── interface.go       # interface ConfigExtension
-│   └── default.go         # DefaultConfig, logging, escritura
-├── protobuf/
-│   └── extension.go       # Soporte para pb.Config como extensión
-│   └── marshal.go         # Export/ImportEncoded
-└── go.mod
+├── config.go
+├── config_test.go
+├── go.mod
+├── go.sum
+├── LICENSE
+├── README.md
+├── Taskfile.yml
+└── testdata
+    └── config.yaml
 
 ```
