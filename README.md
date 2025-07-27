@@ -1,4 +1,4 @@
-[![CI/CD](https://github.com/dyammarcano/config/actions/workflows/ci.yml/badge.svg)](https://github.com/dyammarcano/config/actions/workflows/ci.yml)
+[![Test](https://github.com/dyammarcano/config/actions/workflows/test.yml/badge.svg)](https://github.com/dyammarcano/config/actions/workflows/test.yml)
 
 # Preparar un config nuevo
 
