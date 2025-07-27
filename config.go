@@ -11,9 +11,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/afero"
 	"github.com/spf13/viper"
+	"gopkg.in/yaml.v3"
 )
-
-const appName = "app"
 
 var globalConfig = &Config{
 	Logger: Logger{
@@ -28,7 +27,6 @@ type Logger struct {
 type Config struct {
 	ConfigFile string `yaml:"-" mapstructure:"-"`
 	Init       bool   `yaml:"-" mapstructure:"-"`
-	AppName    string `yaml:"appName" mapstructure:"appName"`
 	AppID      string `yaml:"appID" mapstructure:"appID"`
 	AppSecret  string `yaml:"appSecret" mapstructure:"appSecret"`
 	Logger     Logger `yaml:"logger" mapstructure:"logger"`
@@ -117,10 +115,6 @@ func DefaultConfig[T any](configPath string) error {
 }
 
 func (c *Config) defaultValues() error {
-	if c.AppName == "" {
-		c.AppName = appName
-	}
-
 	if c.AppID == "" {
 		c.AppID = uuid.NewString()
 	}
@@ -188,4 +182,32 @@ func (c *Config) readInConfig(afs afero.Fs) error {
 	}
 
 	return nil
+}
+
+func writeToFile(cfgFile string) error {
+	file, err := os.Create(cfgFile)
+	if err != nil {
+		return err
+	}
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file)
+
+	encoder := yaml.NewEncoder(file)
+	encoder.SetIndent(2)
+	return encoder.Encode(globalConfig)
+}
+
+func exists(fs afero.Fs, path string) bool {
+	stat, err := fs.Stat(path)
+	return err == nil && !stat.IsDir()
+}
+
+func contains(slice []string, item string) bool {
+	for _, v := range slice {
+		if v == item {
+			return true
+		}
+	}
+	return false
 }

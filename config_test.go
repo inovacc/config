@@ -11,17 +11,21 @@ type customService struct {
 	Password string `yaml:"password"`
 }
 
+const testFile = "./testdata/config.yaml"
+
 func TestDefaultConfig(t *testing.T) {
-	err := DefaultConfig[customService]("config.yaml")
+	err := DefaultConfig[customService](testFile)
 	require.NoError(t, err)
 }
 
 func TestSetServiceConfig(t *testing.T) {
-	err := SetServiceConfig(&customService{}, "config.yaml")
+	err := SetServiceConfig(&customService{}, testFile)
 	require.NoError(t, err)
 
 	cfg, err := GetServiceConfig[*customService]()
 	require.NoError(t, err)
+
+	cfg.Username = "myuser"
 
 	require.Equal(t, "myuser", cfg.Username)
 }
