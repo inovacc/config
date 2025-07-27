@@ -2,73 +2,118 @@ package config
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/google/uuid"
 	"github.com/spf13/afero"
 	"github.com/spf13/viper"
-	"gopkg.in/yaml.v3"
 )
 
-var (
-	appName  = "app"
-	CfgFile  string
-	instance *Config
-	once     sync.Once
-)
+const appName = "app"
 
-func init() {
-	once.Do(func() {
-		instance = &Config{
-			fs:            afero.NewOsFs(),
-			configPaths:   make([]string, 0),
-			supportedExts: []string{"json", "yaml", "yml"},
-			Logger: LoggerConfig{
-				LogLevel:   slog.LevelDebug.String(),
-				LogFormat:  "json",
-				MaxSize:    100,
-				MaxAge:     7,
-				MaxBackups: 10,
-				LocalTime:  true,
-				Compress:   true,
-			},
-		}
-	})
-
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+var globalConfig = &Config{
+	Logger: Logger{
+		LogLevel: slog.LevelDebug.String(),
+	},
 }
 
-type LoggerConfig struct {
-	LogLevel   string `yaml:"logLevel" mapstructure:"logLevel" json:"logLevel"`
-	LogFormat  string `yaml:"logFormat" mapstructure:"logFormat" json:"logFormat"`
-	FileName   string `yaml:"fileName" mapstructure:"fileName" json:"fileName"`
-	MaxSize    int    `yaml:"maxSize" mapstructure:"maxSize" json:"maxSize"`
-	MaxAge     int    `yaml:"maxAge" mapstructure:"maxAge" json:"maxAge"`
-	MaxBackups int    `yaml:"maxBackups" mapstructure:"maxBackups" json:"maxBackups"`
-	LocalTime  bool   `yaml:"localTime" mapstructure:"localTime" json:"localTime"`
-	Compress   bool   `yaml:"compress" mapstructure:"compress" json:"compress"`
+type Logger struct {
+	LogLevel string `yaml:"logLevel" mapstructure:"logLevel"`
 }
 
 type Config struct {
-	ctx            context.Context
-	fs             afero.Fs
-	configName     string
-	configFile     string
-	supportedExts  []string
-	configPaths    []string
-	onConfigChange func(fsnotify.Event)
-	watcher        *fsnotify.Watcher
-	AppID          string       `yaml:"appID" mapstructure:"appID" json:"appID"`
-	AppName        string       `yaml:"appName" mapstructure:"appName" json:"appName"`
-	Logger         LoggerConfig `yaml:"logger" mapstructure:"logger" json:"logger"`
-	Service        any          `yaml:"service" mapstructure:"service" json:"service"`
+	ConfigFile string `yaml:"-" mapstructure:"-"`
+	Init       bool   `yaml:"-" mapstructure:"-"`
+	AppName    string `yaml:"appName" mapstructure:"appName"`
+	AppID      string `yaml:"appID" mapstructure:"appID"`
+	AppSecret  string `yaml:"appSecret" mapstructure:"appSecret"`
+	Logger     Logger `yaml:"logger" mapstructure:"logger"`
+	Service    any    `yaml:"service" mapstructure:"service"`
+}
+
+// SetServiceConfig sets the service-specific configuration struct into the global config.
+//
+// This function is intended to allow services to register their own configuration type,
+// which is stored in the generic `Service` field of the global configuration.
+//
+// The type of the configuration struct can be anything, typically a pointer to a
+// custom struct defined by the consuming service.
+//
+// Example:
+//
+//	type MyServiceConfig struct {
+//	    Port int
+//		Mode string
+//	}
+//
+//	core.SetServiceConfig(&MyServiceConfig{
+//		Port: 8080,
+//		Mode: "debug",
+//	}, "config.yaml")
+func SetServiceConfig(v any, configPath string) error {
+	afs := afero.NewOsFs()
+
+	configFile, err := filepath.Abs(configPath)
+	if err != nil {
+		return fmt.Errorf("invalid config file path: %w", err)
+	}
+
+	if !exists(afs, configFile) {
+		return fmt.Errorf("config file does not exist: %s", configFile)
+	}
+
+	globalConfig.ConfigFile = configFile
+	globalConfig.Service = v
+
+	if err = globalConfig.readInConfig(afs); err != nil {
+		return fmt.Errorf("read in config: %s", err)
+	}
+
+	if err = globalConfig.defaultValues(); err != nil {
+		return fmt.Errorf("default values: %s", err)
+	}
+
+	return nil
+}
+
+// GetServiceConfig retrieves the service-specific configuration previously registered
+// using SetServiceConfig. It uses generics to ensure type safety.
+//
+// It returns the configuration as the expected type `T`, or an error if the stored type
+// does not match the expected type.
+//
+// Example:
+//
+//	cfg, err := core.GetServiceConfig[*MyServiceConfig]()
+//	if err != nil {
+//	    log.Fatalf("config error: %v", err)
+//	}
+//	fmt.Println("Port:", cfg.Port)
+//
+// Note: It is the caller’s responsibility to ensure the correct type is requested.
+func GetServiceConfig[T any]() (T, error) {
+	var zero T
+	val, ok := globalConfig.Service.(T)
+	if !ok {
+		return zero, fmt.Errorf("invalid service config type, expected: %T got: %T", zero, globalConfig.Service)
+	}
+	return val, nil
+}
+
+func DefaultConfig[T any](configPath string) error {
+	var zero T
+
+	globalConfig.Init = true
+	globalConfig.Service = zero
+
+	if err := globalConfig.defaultValues(); err != nil {
+		return err
+	}
+	return writeToFile(configPath)
 }
 
 func (c *Config) defaultValues() error {
@@ -76,12 +121,12 @@ func (c *Config) defaultValues() error {
 		c.AppName = appName
 	}
 
-	if c.Logger.FileName == "" {
-		c.Logger.FileName = c.AppName
-	}
-
 	if c.AppID == "" {
 		c.AppID = uuid.NewString()
+	}
+
+	if c.AppSecret == "" {
+		c.AppSecret = uuid.NewString()
 	}
 
 	opts := &slog.HandlerOptions{}
@@ -109,45 +154,15 @@ func (c *Config) defaultValues() error {
 }
 
 func (c *Config) getConfigFile() (string, string, error) {
-	if c.configFile == "" {
-		cf, err := c.findConfigFile()
-		if err != nil {
-			return "", "", err
-		}
-		c.configFile = filepath.Clean(cf)
-	}
-
-	ext := strings.TrimPrefix(filepath.Ext(c.configFile), ".")
-	if !contains(c.supportedExts, ext) {
+	ext := strings.TrimPrefix(filepath.Ext(c.ConfigFile), ".")
+	if !contains([]string{"json", "yaml", "yml"}, ext) {
 		return "", "", fmt.Errorf("unsupported config file extension: %s", ext)
 	}
 
-	return c.configFile, ext, nil
+	return c.ConfigFile, ext, nil
 }
 
-// Find and return a valid configuration file.
-func (c *Config) findConfigFile() (string, error) {
-	slog.Info("Searching for configuration file", "paths", c.configPaths)
-	for _, path := range c.configPaths {
-		if file := c.searchInPath(path); file != "" {
-			return file, nil
-		}
-	}
-	return "", fmt.Errorf("no config file found in paths: %v", c.configPaths)
-}
-
-// Search for a config file in a specified path.
-func (c *Config) searchInPath(path string) string {
-	for _, ext := range c.supportedExts {
-		filePath := filepath.Join(path, fmt.Sprintf("%s.%s", appName, ext))
-		if exists(c.fs, filePath) {
-			return filePath
-		}
-	}
-	return ""
-}
-
-func (c *Config) readInConfig() error {
+func (c *Config) readInConfig(afs afero.Fs) error {
 	slog.Info("attempting to read in config file")
 	filename, ext, err := c.getConfigFile()
 	if err != nil {
@@ -155,7 +170,7 @@ func (c *Config) readInConfig() error {
 	}
 
 	slog.Debug("reading file", "file", filename)
-	file, err := afero.ReadFile(c.fs, filename)
+	file, err := afero.ReadFile(afs, filename)
 	if err != nil {
 		return err
 	}
@@ -168,93 +183,9 @@ func (c *Config) readInConfig() error {
 		return fmt.Errorf("fatal error config file: %s", err)
 	}
 
-	if err = viper.Unmarshal(instance); err != nil {
+	if err = viper.Unmarshal(globalConfig); err != nil {
 		return fmt.Errorf("fatal error config file: %s", err)
 	}
 
 	return nil
-}
-
-func DefaultConfig(object any, path string) error {
-	if object == nil {
-		return fmt.Errorf("need configuration object")
-	}
-
-	instance.Service = object
-
-	if err := instance.defaultValues(); err != nil {
-		return err
-	}
-	return writeToFile(filepath.Join(path, "config.yaml"))
-}
-
-func GetConfig() *Config {
-	return instance
-}
-
-func GetConfigContext() context.Context {
-	return context.WithValue(instance.ctx, "config", instance)
-}
-
-func InitConfigContext(object any) error {
-	return InitConfig(context.Background(), object)
-}
-
-func InitConfig(ctx context.Context, object any) error {
-	if object == nil {
-		return fmt.Errorf("need configuration object")
-	}
-
-	if CfgFile == "" {
-		CfgFile = os.Getenv("CONFIG_FILE")
-	}
-
-	configFile, err := filepath.Abs(CfgFile)
-	if err != nil {
-		return fmt.Errorf("invalid config file path: %w", err)
-	}
-
-	instance.configFile = configFile
-
-	if err = instance.readInConfig(); err != nil {
-		return fmt.Errorf("read in config: %s", err)
-	}
-
-	if err = instance.defaultValues(); err != nil {
-		return fmt.Errorf("default values: %s", err)
-	}
-
-	instance.Service = object
-	instance.ctx = ctx
-
-	return nil
-}
-
-func writeToFile(cfgFile string) error {
-	file, err := os.Create(cfgFile)
-	if err != nil {
-		return err
-	}
-	defer func(file *os.File) {
-		_ = file.Close()
-	}(file)
-
-	encoder := yaml.NewEncoder(file)
-	encoder.SetIndent(2)
-	return encoder.Encode(instance)
-}
-
-// Check if a file exists.
-func exists(fs afero.Fs, path string) bool {
-	stat, err := fs.Stat(path)
-	return err == nil && !stat.IsDir()
-}
-
-func contains(slice []string, item string) bool {
-	for _, v := range slice {
-		if v == item {
-			return true
-		}
-	}
-	return false
 }
