@@ -83,8 +83,6 @@ func InitServiceConfig(v any, configPath string) error {
 		return fmt.Errorf("invalid config file path: %w", err)
 	}
 
-	slog.Debug("Initializing service configuration", "path", configFile)
-
 	// Check if a config file exists, create default if not
 	if !exists(afs, configFile) {
 		slog.Info("Configuration file not found, creating default", "path", configFile)
