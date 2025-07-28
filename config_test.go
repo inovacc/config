@@ -13,11 +13,6 @@ type customService struct {
 
 const testFile = "./testdata/config.yaml"
 
-// func TestDefaultConfig(t *testing.T) {
-// 	err := DefaultConfig[customService](testFile)
-// 	require.NoError(t, err)
-// }
-
 func TestSetServiceConfig(t *testing.T) {
 	err := InitServiceConfig(&customService{}, testFile)
 	require.NoError(t, err)

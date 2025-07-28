@@ -20,7 +20,7 @@ func init() {
 	// viper.SetOptions()
 
 	globalConfig = &Config{
-		viper: viper.NewWithOptions(),
+		viper: viper.New(),
 		Logger: Logger{
 			LogLevel: slog.LevelDebug.String(),
 		},
