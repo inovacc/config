@@ -17,14 +17,19 @@ import (
 var globalConfig *Config
 
 func init() {
-	// viper.SetOptions()
+	level := slog.LevelDebug
 
 	globalConfig = &Config{
-		viper: viper.New(),
 		Logger: Logger{
-			LogLevel: slog.LevelDebug.String(),
+			LogLevel: level.String(),
 		},
 	}
+
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: level,
+	})))
+
+	globalConfig.viper = viper.New()
 }
 
 // Logger defines the configuration for structured logging.
@@ -80,7 +85,7 @@ func InitServiceConfig(v any, configPath string) error {
 
 	slog.Debug("Initializing service configuration", "path", configFile)
 
-	// Check if config file exists, create default if not
+	// Check if a config file exists, create default if not
 	if !exists(afs, configFile) {
 		slog.Info("Configuration file not found, creating default", "path", configFile)
 		globalConfig.Init = true
@@ -166,17 +171,17 @@ func SetEnvPrefix(prefix string) {
 //	secureCfg := config.GetSecureCopy()
 //	fmt.Printf("%+v\n", secureCfg)
 func GetSecureCopy() Config {
-	// Create a copy of the global config
-	copy := *globalConfig
+	// Create a configClone of the global config
+	configClone := *globalConfig
 
 	// Mask sensitive fields
-	if copy.AppSecret != "" {
-		copy.AppSecret = "********"
+	if configClone.AppSecret != "" {
+		configClone.AppSecret = "********"
 	}
 
 	// If the service config has sensitive fields, we should handle them too
 	// This requires reflection to find fields with the sensitive tag
-	return copy
+	return configClone
 }
 
 // LogConfig logs the configuration at debug level, masking sensitive values.
