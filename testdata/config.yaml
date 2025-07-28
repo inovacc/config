@@ -1,7 +1,7 @@
-appID: 4034d0b9-0cef-4456-96cd-afa05d27c066
-appSecret: 4df55816-7e14-4075-8742-945471e7cd91
+appID: 51a3d735-2183-46dd-a4b6-04c70c787465
+appSecret: 3a65a8a6-6bcd-40b0-977b-00307fd92aaa
 logger:
   logLevel: DEBUG
 service:
-  username: ""
-  password: ""
+  username: myuser
+  password: mypass

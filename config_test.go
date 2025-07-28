@@ -25,7 +25,5 @@ func TestSetServiceConfig(t *testing.T) {
 	cfg, err := GetServiceConfig[*customService]()
 	require.NoError(t, err)
 
-	cfg.Username = "myuser"
-
 	require.Equal(t, "myuser", cfg.Username)
 }

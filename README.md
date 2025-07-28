@@ -1,5 +1,12 @@
 [![Test](https://github.com/dyammarcano/config/actions/workflows/test.yml/badge.svg)](https://github.com/dyammarcano/config/actions/workflows/test.yml)
 
+
+# Obtener modulo
+
+```shell
+go get github.com/dyammarcano/config
+```
+
 # Preparar un config nuevo
 
 ```go
