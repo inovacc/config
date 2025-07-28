@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/dyammarcano/config/internal/viper"
 	"github.com/google/uuid"
 	"github.com/spf13/afero"
-	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 )
 
@@ -35,19 +35,25 @@ type Logger struct {
 // Config represents the global application configuration, including base
 // metadata and a generic field for service-specific configuration.
 type Config struct {
-	viper      *viper.Viper
-	ConfigFile string `yaml:"-" mapstructure:"-"`
-	Init       bool   `yaml:"-" mapstructure:"-"`
-	AppID      string `yaml:"appID" mapstructure:"appID"`
-	AppSecret  string `yaml:"appSecret" mapstructure:"appSecret"`
-	Logger     Logger `yaml:"logger" mapstructure:"logger"`
-	Service    any    `yaml:"service" mapstructure:"service"`
+	viper           *viper.Viper
+	ConfigFile      string `yaml:"-" mapstructure:"-"`
+	Init            bool   `yaml:"-" mapstructure:"-"`
+	AppID           string `yaml:"appID" mapstructure:"appID"`
+	AppSecret       string `yaml:"appSecret" mapstructure:"appSecret" sensitive:"true"`
+	Logger          Logger `yaml:"logger" mapstructure:"logger"`
+	Service         any    `yaml:"service" mapstructure:"service"`
+	watchForChanges bool   `yaml:"-" mapstructure:"-"`
+	envPrefix       string `yaml:"-" mapstructure:"-"`
 }
 
 // InitServiceConfig loads a configuration file and binds a service-specific
 // struct to the `Service` field in the global config.
 //
 // It must be called before accessing the service configuration via GetServiceConfig.
+//
+// If the configuration file does not exist, a default one will be created.
+// Default values from the provided service config struct will be used if
+// corresponding values are not found in the configuration file.
 //
 // Example:
 //
@@ -56,7 +62,12 @@ type Config struct {
 //	    Mode string
 //	}
 //
-//	err := config.InitServiceConfig(&MyServiceConfig{}, "config.yaml")
+//	svc := &MyServiceConfig{
+//	    Port: 8080,  // Default value
+//	    Mode: "dev", // Default value
+//	}
+//
+//	err := config.InitServiceConfig(svc, "config.yaml")
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
@@ -68,7 +79,11 @@ func InitServiceConfig(v any, configPath string) error {
 		return fmt.Errorf("invalid config file path: %w", err)
 	}
 
+	slog.Debug("Initializing service configuration", "path", configFile)
+
+	// Check if config file exists, create default if not
 	if !exists(afs, configFile) {
+		slog.Info("Configuration file not found, creating default", "path", configFile)
 		globalConfig.Init = true
 		if err := defaultConfig(configPath); err != nil {
 			return fmt.Errorf("writing default config: %w", err)
@@ -79,13 +94,18 @@ func InitServiceConfig(v any, configPath string) error {
 	globalConfig.ConfigFile = configFile
 	globalConfig.Service = v
 
+	// Read configuration from file
 	if err = globalConfig.readInConfig(afs); err != nil {
 		return fmt.Errorf("reading config: %w", err)
 	}
 
+	// Set default values and configure logging
 	if err = globalConfig.defaultValues(); err != nil {
 		return fmt.Errorf("setting default values: %w", err)
 	}
+
+	// Log the configuration (safely masking sensitive values)
+	LogConfig()
 
 	return nil
 }
@@ -122,6 +142,60 @@ func GetBaseConfig() *Config {
 	return globalConfig
 }
 
+// SetEnvPrefix sets a prefix for environment variables.
+//
+// Environment variables that match the pattern {prefix}_* will override
+// the corresponding configuration values. The matching is case-insensitive.
+//
+// For example, if the prefix is "APP", then the environment variable "APP_LOGGER_LOGLEVEL"
+// will override the value of "logger.logLevel" in the configuration file.
+//
+// Example:
+//
+//	config.SetEnvPrefix("APP")
+func SetEnvPrefix(prefix string) {
+	globalConfig.envPrefix = prefix
+}
+
+// GetSecureCopy returns a copy of the configuration with sensitive values masked.
+//
+// This is useful for logging or displaying the configuration without exposing
+// sensitive information like secrets or passwords.
+//
+// Example:
+//
+//	secureCfg := config.GetSecureCopy()
+//	fmt.Printf("%+v\n", secureCfg)
+func GetSecureCopy() Config {
+	// Create a copy of the global config
+	copy := *globalConfig
+
+	// Mask sensitive fields
+	if copy.AppSecret != "" {
+		copy.AppSecret = "********"
+	}
+
+	// If the service config has sensitive fields, we should handle them too
+	// This requires reflection to find fields with the sensitive tag
+	return copy
+}
+
+// LogConfig logs the configuration at debug level, masking sensitive values.
+//
+// This is a convenience method for safely logging the configuration.
+//
+// Example:
+//
+//	config.LogConfig()
+func LogConfig() {
+	secureCfg := GetSecureCopy()
+	slog.Debug("Current configuration",
+		"appID", secureCfg.AppID,
+		"appSecret", secureCfg.AppSecret,
+		"logLevel", secureCfg.Logger.LogLevel,
+	)
+}
+
 // DefaultConfig generates a base configuration file with random credentials and
 // zeroed service configuration for a given type.
 //
@@ -143,30 +217,40 @@ func DefaultConfig[T any](configPath string) error {
 }
 
 func (c *Config) defaultValues() error {
+	// Validate and set default AppID
 	if c.AppID == "" {
 		c.AppID = uuid.NewString()
+		slog.Debug("Generated new AppID", "appID", c.AppID)
+	} else if len(c.AppID) < 8 {
+		return fmt.Errorf("invalid AppID: must be at least 8 characters long, got %d characters", len(c.AppID))
 	}
 
+	// Validate and set default AppSecret
 	if c.AppSecret == "" {
 		c.AppSecret = uuid.NewString()
+		slog.Debug("Generated new AppSecret")
+	} else if len(c.AppSecret) < 12 {
+		return fmt.Errorf("invalid AppSecret: must be at least 12 characters long, got %d characters", len(c.AppSecret))
 	}
 
+	// Configure logging
 	opts := &slog.HandlerOptions{}
 
-	switch c.Logger.LogLevel {
-	case slog.LevelDebug.String():
+	switch strings.ToUpper(c.Logger.LogLevel) {
+	case "DEBUG", slog.LevelDebug.String():
 		opts.Level = slog.LevelDebug
-	case slog.LevelInfo.String():
+	case "INFO", slog.LevelInfo.String():
 		opts.Level = slog.LevelInfo
-	case slog.LevelWarn.String():
+	case "WARN", "WARNING", slog.LevelWarn.String():
 		opts.Level = slog.LevelWarn
-	case slog.LevelError.String():
+	case "ERROR", slog.LevelError.String():
 		opts.Level = slog.LevelError
 	default:
-		return fmt.Errorf("unknown log level: %s", c.Logger.LogLevel)
+		return fmt.Errorf("unknown log level: %q (valid values: DEBUG, INFO, WARN, ERROR)", c.Logger.LogLevel)
 	}
 
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, opts)))
+	slog.Debug("logger configured", "level", c.Logger.LogLevel)
 	return nil
 }
 
@@ -194,6 +278,13 @@ func (c *Config) readInConfig(afs afero.Fs) error {
 
 	c.viper.SetConfigType(ext)
 	c.viper.SetConfigFile(filename)
+
+	// Configure environment variable binding
+	if c.envPrefix != "" {
+		slog.Debug("Setting environment variable prefix", "prefix", c.envPrefix)
+		c.viper.SetEnvPrefix(c.envPrefix)
+		c.viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
+	}
 	c.viper.AutomaticEnv()
 
 	if err = c.viper.ReadConfig(bytes.NewReader(file)); err != nil {

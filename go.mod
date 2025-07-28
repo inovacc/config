@@ -6,7 +6,6 @@ require (
 	github.com/btcsuite/btcutil v1.0.2
 	github.com/google/uuid v1.6.0
 	github.com/spf13/afero v1.14.0
-	github.com/spf13/viper v1.20.0
 	github.com/stretchr/testify v1.10.0
 	google.golang.org/protobuf v1.36.6
 	gopkg.in/yaml.v3 v3.0.1
