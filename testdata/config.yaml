@@ -1,7 +1,7 @@
-appID: 51a3d735-2183-46dd-a4b6-04c70c787465
-appSecret: 3a65a8a6-6bcd-40b0-977b-00307fd92aaa
+appID: 7c75eaa3-81f4-434f-b774-5208270525cd
+appSecret: 27fb1f22-6242-4e69-b04b-0355b87e8ee4
 logger:
   logLevel: DEBUG
 service:
-  username: myuser
-  password: mypass
+  username: tuser
+  password: tpass

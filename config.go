@@ -35,15 +35,14 @@ type Logger struct {
 // Config represents the global application configuration, including base
 // metadata and a generic field for service-specific configuration.
 type Config struct {
-	viper           *viper.Viper
-	ConfigFile      string `yaml:"-" mapstructure:"-"`
-	Init            bool   `yaml:"-" mapstructure:"-"`
-	AppID           string `yaml:"appID" mapstructure:"appID"`
-	AppSecret       string `yaml:"appSecret" mapstructure:"appSecret" sensitive:"true"`
-	Logger          Logger `yaml:"logger" mapstructure:"logger"`
-	Service         any    `yaml:"service" mapstructure:"service"`
-	watchForChanges bool   `yaml:"-" mapstructure:"-"`
-	envPrefix       string `yaml:"-" mapstructure:"-"`
+	viper      *viper.Viper
+	ConfigFile string `yaml:"-" mapstructure:"-"`
+	Init       bool   `yaml:"-" mapstructure:"-"`
+	AppID      string `yaml:"appID" mapstructure:"appID"`
+	AppSecret  string `yaml:"appSecret" mapstructure:"appSecret" sensitive:"true"`
+	Logger     Logger `yaml:"logger" mapstructure:"logger"`
+	Service    any    `yaml:"service" mapstructure:"service"`
+	envPrefix  string `yaml:"-" mapstructure:"-"`
 }
 
 // InitServiceConfig loads a configuration file and binds a service-specific

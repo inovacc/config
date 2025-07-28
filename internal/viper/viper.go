@@ -321,7 +321,9 @@ func (v *Viper) WatchConfig() {
 			v.logger.Error(fmt.Sprintf("failed to create watcher: %s", err))
 			os.Exit(1)
 		}
-		defer watcher.Close()
+		defer func(watcher *fsnotify.Watcher) {
+			_ = watcher.Close()
+		}(watcher)
 		// we have to watch the entire directory to pick up renames/atomic saves in a cross-platform way
 		filename, err := v.getConfigFile()
 		if err != nil {
@@ -373,7 +375,7 @@ func (v *Viper) WatchConfig() {
 				}
 			}
 		}()
-		watcher.Add(configDir)
+		_ = watcher.Add(configDir)
 		initWG.Done()   // done initializing the watch in this go routine, so the parent routine can move on...
 		eventsWG.Wait() // now, wait for event loop to end in this go-routine...
 	}()
@@ -1649,7 +1651,9 @@ func (v *Viper) writeConfig(filename string, force bool) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func(f afero.File) {
+		_ = f.Close()
+	}(f)
 
 	if err := v.marshalWriter(f, configType); err != nil {
 		return err
@@ -1660,7 +1664,7 @@ func (v *Viper) writeConfig(filename string, force bool) error {
 
 func (v *Viper) unmarshalReader(in io.Reader, c map[string]any) error {
 	buf := new(bytes.Buffer)
-	buf.ReadFrom(in)
+	_, _ = buf.ReadFrom(in)
 
 	format := strings.ToLower(v.getConfigType())
 
@@ -2018,11 +2022,11 @@ func DebugTo(w io.Writer) { v.DebugTo(w) }
 func (v *Viper) Debug() { v.DebugTo(os.Stdout) }
 
 func (v *Viper) DebugTo(w io.Writer) {
-	fmt.Fprintf(w, "Aliases:\n%#v\n", v.aliases)
-	fmt.Fprintf(w, "Override:\n%#v\n", v.override)
-	fmt.Fprintf(w, "PFlags:\n%#v\n", v.pflags)
-	fmt.Fprintf(w, "Env:\n%#v\n", v.env)
-	fmt.Fprintf(w, "Key/Value Store:\n%#v\n", v.kvstore)
-	fmt.Fprintf(w, "Config:\n%#v\n", v.config)
-	fmt.Fprintf(w, "Defaults:\n%#v\n", v.defaults)
+	_, _ = fmt.Fprintf(w, "Aliases:\n%#v\n", v.aliases)
+	_, _ = fmt.Fprintf(w, "Override:\n%#v\n", v.override)
+	_, _ = fmt.Fprintf(w, "PFlags:\n%#v\n", v.pflags)
+	_, _ = fmt.Fprintf(w, "Env:\n%#v\n", v.env)
+	_, _ = fmt.Fprintf(w, "Key/Value Store:\n%#v\n", v.kvstore)
+	_, _ = fmt.Fprintf(w, "Config:\n%#v\n", v.config)
+	_, _ = fmt.Fprintf(w, "Defaults:\n%#v\n", v.defaults)
 }

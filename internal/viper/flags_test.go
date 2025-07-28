@@ -34,7 +34,7 @@ func TestBindFlagValueSet(t *testing.T) {
 	require.NoError(t, err, "error binding flag set")
 
 	flagSet.VisitAll(func(flag *pflag.Flag) {
-		flag.Value.Set(mutatedTestValues[flag.Name])
+		_ = flag.Value.Set(mutatedTestValues[flag.Name])
 		flag.Changed = true
 	})
 
@@ -54,11 +54,11 @@ func TestBindFlagValue(t *testing.T) {
 	}
 
 	flagValue := pflagValue{flag}
-	BindFlagValue("testvalue", flagValue)
+	_ = BindFlagValue("testvalue", flagValue)
 
 	assert.Equal(t, testString, Get("testvalue"))
 
-	flag.Value.Set("testing_mutate")
+	_ = flag.Value.Set("testing_mutate")
 	flag.Changed = true // hack for pflag usage
 
 	assert.Equal(t, "testing_mutate", Get("testvalue"))

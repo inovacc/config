@@ -94,23 +94,23 @@ func initConfigs(v *Viper) {
 	var r io.Reader
 	v.SetConfigType("yaml")
 	r = bytes.NewReader(yamlExample)
-	v.unmarshalReader(r, v.config)
+	_ = v.unmarshalReader(r, v.config)
 
 	v.SetConfigType("json")
 	r = bytes.NewReader(jsonExample)
-	v.unmarshalReader(r, v.config)
+	_ = v.unmarshalReader(r, v.config)
 
 	v.SetConfigType("toml")
 	r = bytes.NewReader(tomlExample)
-	v.unmarshalReader(r, v.config)
+	_ = v.unmarshalReader(r, v.config)
 
 	v.SetConfigType("env")
 	r = bytes.NewReader(dotenvExample)
-	v.unmarshalReader(r, v.config)
+	_ = v.unmarshalReader(r, v.config)
 
 	v.SetConfigType("json")
 	remote := bytes.NewReader(remoteExample)
-	v.unmarshalReader(remote, v.kvstore)
+	_ = v.unmarshalReader(remote, v.kvstore)
 }
 
 func initConfig(typ, config string, v *Viper) {
@@ -368,7 +368,7 @@ func TestReadInConfig(t *testing.T) {
 		_, err = file.WriteString(`key: value`)
 		require.NoError(t, err)
 
-		file.Close()
+		_ = file.Close()
 
 		v := New()
 
@@ -393,7 +393,7 @@ func TestReadInConfig(t *testing.T) {
 		_, err = file.WriteString(`key: value`)
 		require.NoError(t, err)
 
-		file.Close()
+		_ = file.Close()
 
 		v := New()
 
@@ -418,7 +418,7 @@ func TestReadInConfig(t *testing.T) {
 		_, err = file.WriteString(`key: value`)
 		require.NoError(t, err)
 
-		file.Close()
+		_ = file.Close()
 
 		v := NewWithOptions(ExperimentalFinder())
 
@@ -443,7 +443,7 @@ func TestReadInConfig(t *testing.T) {
 		_, err = file.WriteString(`key: value`)
 		require.NoError(t, err)
 
-		file.Close()
+		_ = file.Close()
 
 		finder := locafero.Finder{
 			Paths: []string{testutil.AbsFilePath(t, "/etc/viper")},
@@ -486,7 +486,7 @@ func TestUnmarshaling(t *testing.T) {
 	v.SetConfigType("yaml")
 	r := bytes.NewReader(yamlExample)
 
-	v.unmarshalReader(r, v.config)
+	_ = v.unmarshalReader(r, v.config)
 	assert.True(t, v.InConfig("name"))
 	assert.True(t, v.InConfig("clothing.jacket"))
 	assert.False(t, v.InConfig("state"))
@@ -502,7 +502,7 @@ func TestUnmarshalExact(t *testing.T) {
 	target := &testUnmarshalExtra{}
 	v.SetConfigType("yaml")
 	r := bytes.NewReader(yamlExampleWithExtras)
-	v.ReadConfig(r)
+	_ = v.ReadConfig(r)
 	err := v.UnmarshalExact(target)
 	assert.Error(t, err, "UnmarshalExact should error when populating a struct from a conf that contains unused fields")
 }
@@ -609,8 +609,8 @@ func TestEnv(t *testing.T) {
 	// Read the JSON data into Viper configuration v.config
 	require.NoError(t, v.ReadConfig(bytes.NewBuffer(jsonExample)), "Error reading json data")
 
-	v.BindEnv("id")
-	v.BindEnv("f", "FOOD", "OLD_FOOD")
+	_ = v.BindEnv("id")
+	_ = v.BindEnv("f", "FOOD", "OLD_FOOD")
 
 	t.Setenv("ID", "13")
 	t.Setenv("FOOD", "apple")
@@ -632,7 +632,7 @@ func TestMultipleEnv(t *testing.T) {
 	// Read the JSON data into Viper configuration v.config
 	require.NoError(t, v.ReadConfig(bytes.NewBuffer(jsonExample)), "Error reading json data")
 
-	v.BindEnv("f", "FOOD", "OLD_FOOD")
+	_ = v.BindEnv("f", "FOOD", "OLD_FOOD")
 
 	t.Setenv("OLD_FOOD", "banana")
 
@@ -645,8 +645,8 @@ func TestEmptyEnv(t *testing.T) {
 	// Read the JSON data into Viper configuration v.config
 	require.NoError(t, v.ReadConfig(bytes.NewBuffer(jsonExample)), "Error reading json data")
 
-	v.BindEnv("type") // Empty environment variable
-	v.BindEnv("name") // Bound, but not set environment variable
+	_ = v.BindEnv("type") // Empty environment variable
+	_ = v.BindEnv("name") // Bound, but not set environment variable
 
 	t.Setenv("TYPE", "")
 
@@ -662,8 +662,8 @@ func TestEmptyEnv_Allowed(t *testing.T) {
 
 	v.AllowEmptyEnv(true)
 
-	v.BindEnv("type") // Empty environment variable
-	v.BindEnv("name") // Bound, but not set environment variable
+	_ = v.BindEnv("type") // Empty environment variable
+	_ = v.BindEnv("name") // Bound, but not set environment variable
 
 	t.Setenv("TYPE", "")
 
@@ -678,8 +678,8 @@ func TestEnvPrefix(t *testing.T) {
 	require.NoError(t, v.ReadConfig(bytes.NewBuffer(jsonExample)), "Error reading json data")
 
 	v.SetEnvPrefix("foo") // will be uppercased automatically
-	v.BindEnv("id")
-	v.BindEnv("f", "FOOD") // not using prefix
+	_ = v.BindEnv("id")
+	_ = v.BindEnv("f", "FOOD") // not using prefix
 
 	t.Setenv("FOO_ID", "13")
 	t.Setenv("FOOD", "apple")
@@ -825,8 +825,8 @@ func TestAllKeysWithEnv(t *testing.T) {
 	v := New()
 
 	// bind and define environment variables (including a nested one)
-	v.BindEnv("id")
-	v.BindEnv("foo.bar")
+	_ = v.BindEnv("id")
+	_ = v.BindEnv("foo.bar")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
 	t.Setenv("ID", "13")
@@ -1113,7 +1113,7 @@ func TestBindPFlags(t *testing.T) {
 	require.NoError(t, err, "error binding flag set")
 
 	flagSet.VisitAll(func(flag *pflag.Flag) {
-		flag.Value.Set(mutatedTestValues[flag.Name])
+		_ = flag.Value.Set(mutatedTestValues[flag.Name])
 		flag.Changed = true
 	})
 
@@ -1143,7 +1143,7 @@ func TestBindPFlagsStringSlice(t *testing.T) {
 
 		for _, changed := range []bool{true, false} {
 			flagSet.VisitAll(func(f *pflag.Flag) {
-				f.Value.Set(testValue.Value)
+				_ = f.Value.Set(testValue.Value)
 				f.Changed = changed
 			})
 
@@ -1187,7 +1187,7 @@ func TestBindPFlagsStringArray(t *testing.T) {
 
 		for _, changed := range []bool{true, false} {
 			flagSet.VisitAll(func(f *pflag.Flag) {
-				f.Value.Set(testValue.Value)
+				_ = f.Value.Set(testValue.Value)
 				f.Changed = changed
 			})
 
@@ -1217,7 +1217,7 @@ func TestSliceFlagsReturnCorrectType(t *testing.T) {
 	flagSet.DurationSlice("duration", []time.Duration{5 * time.Second}, "")
 
 	v := New()
-	v.BindPFlags(flagSet)
+	_ = v.BindPFlags(flagSet)
 
 	all := v.AllSettings()
 
@@ -1246,7 +1246,7 @@ func TestBindPFlagsIntSlice(t *testing.T) {
 
 		for _, changed := range []bool{true, false} {
 			flagSet.VisitAll(func(f *pflag.Flag) {
-				f.Value.Set(testValue.Value)
+				_ = f.Value.Set(testValue.Value)
 				f.Changed = changed
 			})
 
@@ -1280,11 +1280,11 @@ func TestBindPFlag(t *testing.T) {
 		Changed: false,
 	}
 
-	v.BindPFlag("testvalue", flag)
+	_ = v.BindPFlag("testvalue", flag)
 
 	assert.Equal(t, testString, v.Get("testvalue"))
 
-	flag.Value.Set("testing_mutate")
+	_ = flag.Value.Set("testing_mutate")
 	flag.Changed = true // hack for pflag usage
 
 	assert.Equal(t, "testing_mutate", v.Get("testvalue"))
@@ -1318,7 +1318,7 @@ func TestBindPFlagStringToString(t *testing.T) {
 
 		for _, changed := range []bool{true, false} {
 			flagSet.VisitAll(func(f *pflag.Flag) {
-				f.Value.Set(testValue.Value)
+				_ = f.Value.Set(testValue.Value)
 				f.Changed = changed
 			})
 
@@ -1362,7 +1362,7 @@ func TestBindPFlagStringToInt(t *testing.T) {
 
 		for _, changed := range []bool{true, false} {
 			flagSet.VisitAll(func(f *pflag.Flag) {
-				f.Value.Set(testValue.Value)
+				_ = f.Value.Set(testValue.Value)
 				f.Changed = changed
 			})
 
@@ -1389,7 +1389,7 @@ func TestBoundCaseSensitivity(t *testing.T) {
 	initConfigs(v)
 	assert.Equal(t, "brown", v.Get("eyes"))
 
-	v.BindEnv("eYEs", "TURTLE_EYES")
+	_ = v.BindEnv("eYEs", "TURTLE_EYES")
 
 	t.Setenv("TURTLE_EYES", "blue")
 
@@ -1404,7 +1404,7 @@ func TestBoundCaseSensitivity(t *testing.T) {
 		Changed: true,
 	}
 
-	v.BindPFlag("eYEs", flag)
+	_ = v.BindPFlag("eYEs", flag)
 	assert.Equal(t, "green", v.Get("eyes"))
 }
 
@@ -1547,7 +1547,7 @@ func TestIsSet(t *testing.T) {
 	v.SetConfigType("yaml")
 
 	/* config and defaults */
-	v.ReadConfig(bytes.NewBuffer(yamlExample))
+	_ = v.ReadConfig(bytes.NewBuffer(yamlExample))
 	v.SetDefault("clothing.shoes", "sneakers")
 
 	assert.True(t, v.IsSet("clothing"))
@@ -1562,10 +1562,10 @@ func TestIsSet(t *testing.T) {
 
 	/* env */
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	v.BindEnv("eyes")
-	v.BindEnv("foo")
-	v.BindEnv("clothing.hat")
-	v.BindEnv("clothing.hats")
+	_ = v.BindEnv("eyes")
+	_ = v.BindEnv("foo")
+	_ = v.BindEnv("clothing.hat")
+	_ = v.BindEnv("clothing.hats")
 
 	t.Setenv("FOO", "bar")
 	t.Setenv("CLOTHING_HAT", "bowler")
@@ -1580,9 +1580,9 @@ func TestIsSet(t *testing.T) {
 	flagset.Bool("foobaz", false, "foobaz")
 	flagset.Bool("barbaz", false, "barbaz")
 	foobaz, barbaz := flagset.Lookup("foobaz"), flagset.Lookup("barbaz")
-	v.BindPFlag("foobaz", foobaz)
-	v.BindPFlag("barbaz", barbaz)
-	barbaz.Value.Set("true")
+	_ = v.BindPFlag("foobaz", foobaz)
+	_ = v.BindPFlag("barbaz", barbaz)
+	_ = barbaz.Value.Set("true")
 	barbaz.Changed = true // hack for pflag usage
 
 	assert.False(t, v.IsSet("foobaz"))
@@ -1660,7 +1660,7 @@ func TestUnwrapParseErrors(t *testing.T) {
 func TestSub(t *testing.T) {
 	v := New()
 	v.SetConfigType("yaml")
-	v.ReadConfig(bytes.NewBuffer(yamlExample))
+	_ = v.ReadConfig(bytes.NewBuffer(yamlExample))
 
 	subv := v.Sub("clothing")
 	assert.Equal(t, v.Get("clothing.pants.size"), subv.Get("pants.size"))
@@ -1935,7 +1935,7 @@ func TestSafeWriteConfigWithMissingConfigPath(t *testing.T) {
 func TestSafeWriteConfigWithExistingFile(t *testing.T) {
 	v := New()
 	fs := afero.NewMemMapFs()
-	fs.Create(testutil.AbsFilePath(t, "/test/c.yaml"))
+	_, _ = fs.Create(testutil.AbsFilePath(t, "/test/c.yaml"))
 	v.SetFs(fs)
 	v.AddConfigPath("/test")
 	v.SetConfigName("c")
@@ -1961,7 +1961,7 @@ func TestSafeWriteAsConfig(t *testing.T) {
 func TestSafeWriteConfigAsWithExistingFile(t *testing.T) {
 	v := New()
 	fs := afero.NewMemMapFs()
-	fs.Create("/test/c.yaml")
+	_, _ = fs.Create("/test/c.yaml")
 	v.SetFs(fs)
 	err := v.SafeWriteConfigAs("/test/c.yaml")
 	require.Error(t, err)
@@ -1972,7 +1972,7 @@ func TestSafeWriteConfigAsWithExistingFile(t *testing.T) {
 func TestWriteHiddenFile(t *testing.T) {
 	v := New()
 	fs := afero.NewMemMapFs()
-	fs.Create(testutil.AbsFilePath(t, "/test/.config"))
+	_, _ = fs.Create(testutil.AbsFilePath(t, "/test/.config"))
 	v.SetFs(fs)
 
 	v.SetConfigName(".config")
@@ -2192,7 +2192,7 @@ func TestDotParameter(t *testing.T) {
 
 	// should take precedence over batters defined in jsonExample
 	r := bytes.NewReader([]byte(`{ "batters.batter": [ { "type": "Small" } ] }`))
-	v.unmarshalReader(r, v.config)
+	_ = v.unmarshalReader(r, v.config)
 
 	actual := v.Get("batters.batter")
 	expected := []any{map[string]any{"type": "Small"}}
@@ -2348,10 +2348,10 @@ func newViperWithSymlinkedConfigFile(t *testing.T) (*Viper, string, string) {
 	err = os.WriteFile(realConfigFile, []byte("foo: bar\n"), 0o640)
 	require.NoError(t, err)
 	// now, symlink the tm `data1` dir to `data` in the baseDir
-	os.Symlink(dataDir1, path.Join(watchDir, "data"))
+	_ = os.Symlink(dataDir1, path.Join(watchDir, "data"))
 	// and link the `<watchdir>/datadir1/config.yaml` to `<watchdir>/config.yaml`
 	configFile := path.Join(watchDir, "config.yaml")
-	os.Symlink(path.Join(watchDir, "data", "config.yaml"), configFile)
+	_ = os.Symlink(path.Join(watchDir, "data", "config.yaml"), configFile)
 	t.Logf("Config file location: %s\n", path.Join(watchDir, "config.yaml"))
 	// init Viper
 	v := New()
@@ -2594,7 +2594,7 @@ func TestFlagShadow(t *testing.T) {
 		flag.Changed = true
 	})
 
-	v.BindPFlags(flags)
+	_ = v.BindPFlags(flags)
 
 	assert.Equal(t, "shadowed", v.GetString("foo.bar1"))
 	// the default "foo.bar1.bar2" value should shadowed by flag "foo.bar1" value

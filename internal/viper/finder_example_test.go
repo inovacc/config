@@ -12,14 +12,14 @@ import (
 func ExampleFinder() {
 	fs := afero.NewMemMapFs()
 
-	fs.Mkdir("/home/user", 0o777)
+	_ = fs.Mkdir("/home/user", 0o777)
 
 	f, _ := fs.Create("/home/user/myapp.yaml")
-	f.WriteString("foo: bar")
-	f.Close()
+	_, _ = f.WriteString("foo: bar")
+	_ = f.Close()
 
 	// HCL will have a "lower" priority in the search order
-	fs.Create("/home/user/myapp.hcl")
+	_, _ = fs.Create("/home/user/myapp.hcl")
 
 	finder := locafero.Finder{
 		Paths: []string{"/home/user"},
@@ -29,7 +29,7 @@ func ExampleFinder() {
 
 	v := viper.NewWithOptions(viper.WithFinder(finder))
 	v.SetFs(fs)
-	v.ReadInConfig()
+	_ = v.ReadInConfig()
 
 	fmt.Println(v.GetString("foo"))
 
@@ -40,13 +40,13 @@ func ExampleFinder() {
 func ExampleFinders() {
 	fs := afero.NewMemMapFs()
 
-	fs.Mkdir("/home/user", 0o777)
+	_ = fs.Mkdir("/home/user", 0o777)
 	f, _ := fs.Create("/home/user/myapp.yaml")
-	f.WriteString("foo: bar")
-	f.Close()
+	_, _ = f.WriteString("foo: bar")
+	_ = f.Close()
 
-	fs.Mkdir("/etc/myapp", 0o777)
-	fs.Create("/etc/myapp/config.yaml")
+	_ = fs.Mkdir("/etc/myapp", 0o777)
+	_, _ = fs.Create("/etc/myapp/config.yaml")
 
 	// Combine multiple finders to search for files in multiple locations with different criteria
 	finder := viper.Finders(
@@ -64,7 +64,7 @@ func ExampleFinders() {
 
 	v := viper.NewWithOptions(viper.WithFinder(finder))
 	v.SetFs(fs)
-	v.ReadInConfig()
+	_ = v.ReadInConfig()
 
 	fmt.Println(v.GetString("foo"))
 
