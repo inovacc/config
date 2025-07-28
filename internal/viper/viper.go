@@ -179,8 +179,6 @@ type Viper struct {
 
 	onConfigChange func(fsnotify.Event)
 
-	logger *slog.Logger
-
 	encoderRegistry EncoderRegistry
 	decoderRegistry DecoderRegistry
 
@@ -196,7 +194,6 @@ func New() *Viper {
 	codecRegistry := NewCodecRegistry()
 
 	return &Viper{
-		logger:                 slog.Default(),
 		keyDelim:               ".",
 		configName:             "config",
 		configPermissions:      os.FileMode(0o644),
@@ -318,7 +315,7 @@ func (v *Viper) WatchConfig() {
 	go func() {
 		watcher, err := fsnotify.NewWatcher()
 		if err != nil {
-			v.logger.Error(fmt.Sprintf("failed to create watcher: %s", err))
+			slog.Error(fmt.Sprintf("failed to create watcher: %s", err))
 			os.Exit(1)
 		}
 		defer func(watcher *fsnotify.Watcher) {
@@ -327,7 +324,7 @@ func (v *Viper) WatchConfig() {
 		// we have to watch the entire directory to pick up renames/atomic saves in a cross-platform way
 		filename, err := v.getConfigFile()
 		if err != nil {
-			v.logger.Error(fmt.Sprintf("get config file: %s", err))
+			slog.Error(fmt.Sprintf("get config file: %s", err))
 			initWG.Done()
 			return
 		}
@@ -356,7 +353,7 @@ func (v *Viper) WatchConfig() {
 						realConfigFile = currentConfigFile
 						err := v.ReadInConfig()
 						if err != nil {
-							v.logger.Error(fmt.Sprintf("read config file: %s", err))
+							slog.Error(fmt.Sprintf("read config file: %s", err))
 						}
 						if v.onConfigChange != nil {
 							v.onConfigChange(event)
@@ -368,7 +365,7 @@ func (v *Viper) WatchConfig() {
 
 				case err, ok := <-watcher.Errors:
 					if ok { // 'Errors' channel is not closed
-						v.logger.Error(fmt.Sprintf("watcher error: %s", err))
+						slog.Error(fmt.Sprintf("watcher error: %s", err))
 					}
 					eventsWG.Done()
 					return
@@ -453,13 +450,13 @@ func AddConfigPath(in string) { v.AddConfigPath(in) }
 
 func (v *Viper) AddConfigPath(in string) {
 	if v.finder != nil {
-		v.logger.Warn("ineffective call to function: custom finder takes precedence", slog.String("function", "AddConfigPath"))
+		slog.Warn("ineffective call to function: custom finder takes precedence", slog.String("function", "AddConfigPath"))
 	}
 
 	if in != "" {
-		absin := absPathify(v.logger, in)
+		absin := absPathify(in)
 
-		v.logger.Info("adding path to search paths", "path", absin)
+		slog.Info("adding path to search paths", "path", absin)
 		if !slices.Contains(v.configPaths, absin) {
 			v.configPaths = append(v.configPaths, absin)
 		}
@@ -1411,14 +1408,14 @@ func (v *Viper) registerAlias(alias, key string) {
 			v.aliases[alias] = key
 		}
 	} else {
-		v.logger.Warn("creating circular reference alias", "alias", alias, "key", key, "real_key", v.realKey(key))
+		slog.Warn("creating circular reference alias", "alias", alias, "key", key, "real_key", v.realKey(key))
 	}
 }
 
 func (v *Viper) realKey(key string) string {
 	newkey, exists := v.aliases[key]
 	if exists {
-		v.logger.Debug("key is an alias", "alias", key, "to", newkey)
+		slog.Debug("key is an alias", "alias", key, "to", newkey)
 
 		return v.realKey(newkey)
 	}
@@ -1480,7 +1477,7 @@ func (v *Viper) Set(key string, value any) {
 func ReadInConfig() error { return v.ReadInConfig() }
 
 func (v *Viper) ReadInConfig() error {
-	v.logger.Info("attempting to read in config file")
+	slog.Info("attempting to read in config file")
 	filename, err := v.getConfigFile()
 	if err != nil {
 		return err
@@ -1490,7 +1487,7 @@ func (v *Viper) ReadInConfig() error {
 		return UnsupportedConfigError(v.getConfigType())
 	}
 
-	v.logger.Debug("reading file", "file", filename)
+	slog.Debug("reading file", "file", filename)
 	file, err := afero.ReadFile(v.fs, filename)
 	if err != nil {
 		return err
@@ -1511,7 +1508,7 @@ func (v *Viper) ReadInConfig() error {
 func MergeInConfig() error { return v.MergeInConfig() }
 
 func (v *Viper) MergeInConfig() error {
-	v.logger.Info("attempting to merge in config file")
+	slog.Info("attempting to merge in config file")
 	filename, err := v.getConfigFile()
 	if err != nil {
 		return err
@@ -1623,7 +1620,7 @@ func (v *Viper) SafeWriteConfigAs(filename string) error {
 }
 
 func (v *Viper) writeConfig(filename string, force bool) error {
-	v.logger.Info("attempting to write configuration to file")
+	slog.Info("attempting to write configuration to file")
 
 	var configType string
 
@@ -1762,7 +1759,7 @@ func mergeMaps(src, tgt map[string]any, itgt map[any]any) {
 	for sk, sv := range src {
 		tk := keyExists(sk, tgt)
 		if tk == "" {
-			v.logger.Debug("", "tk", "\"\"", fmt.Sprintf("tgt[%s]", sk), sv)
+			slog.Debug("", "tk", "\"\"", fmt.Sprintf("tgt[%s]", sk), sv)
 			tgt[sk] = sv
 			if itgt != nil {
 				itgt[sk] = sv
@@ -1772,7 +1769,7 @@ func mergeMaps(src, tgt map[string]any, itgt map[any]any) {
 
 		tv, ok := tgt[tk]
 		if !ok {
-			v.logger.Debug("", fmt.Sprintf("ok[%s]", tk), false, fmt.Sprintf("tgt[%s]", sk), sv)
+			slog.Debug("", fmt.Sprintf("ok[%s]", tk), false, fmt.Sprintf("tgt[%s]", sk), sv)
 			tgt[sk] = sv
 			if itgt != nil {
 				itgt[sk] = sv
@@ -1783,7 +1780,7 @@ func mergeMaps(src, tgt map[string]any, itgt map[any]any) {
 		svType := reflect.TypeOf(sv)
 		tvType := reflect.TypeOf(tv)
 
-		v.logger.Debug(
+		slog.Debug(
 			"processing",
 			"key", sk,
 			"st", svType,
@@ -1794,10 +1791,10 @@ func mergeMaps(src, tgt map[string]any, itgt map[any]any) {
 
 		switch ttv := tv.(type) {
 		case map[any]any:
-			v.logger.Debug("merging maps (must convert)")
+			slog.Debug("merging maps (must convert)")
 			tsv, ok := sv.(map[any]any)
 			if !ok {
-				v.logger.Error(
+				slog.Error(
 					"Could not cast sv to map[any]any",
 					"key", sk,
 					"st", svType,
@@ -1812,10 +1809,10 @@ func mergeMaps(src, tgt map[string]any, itgt map[any]any) {
 			stv := castToMapStringInterface(ttv)
 			mergeMaps(ssv, stv, ttv)
 		case map[string]any:
-			v.logger.Debug("merging maps")
+			slog.Debug("merging maps")
 			tsv, ok := sv.(map[string]any)
 			if !ok {
-				v.logger.Error(
+				slog.Error(
 					"Could not cast sv to map[string]any",
 					"key", sk,
 					"st", svType,
@@ -1827,7 +1824,7 @@ func mergeMaps(src, tgt map[string]any, itgt map[any]any) {
 			}
 			mergeMaps(tsv, ttv, nil)
 		default:
-			v.logger.Debug("setting value")
+			slog.Debug("setting value")
 			tgt[tk] = sv
 			if itgt != nil {
 				itgt[tk] = sv
@@ -1958,7 +1955,7 @@ func SetConfigName(in string) { v.SetConfigName(in) }
 
 func (v *Viper) SetConfigName(in string) {
 	if v.finder != nil {
-		v.logger.Warn("ineffective call to function: custom finder takes precedence", slog.String("function", "SetConfigName"))
+		slog.Warn("ineffective call to function: custom finder takes precedence", slog.String("function", "SetConfigName"))
 	}
 
 	if in != "" {

@@ -11,7 +11,6 @@
 package viper
 
 import (
-	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
@@ -80,7 +79,7 @@ func TestAbsPathify(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		got := absPathify(slog.Default(), test.input)
+		got := absPathify(test.input)
 		assert.Equal(t, test.output, got)
 	}
 }

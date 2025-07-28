@@ -105,8 +105,8 @@ func insensitiveArray(a []any) {
 	}
 }
 
-func absPathify(logger *slog.Logger, inPath string) string {
-	logger.Info("trying to resolve absolute path", "path", inPath)
+func absPathify(inPath string) string {
+	slog.Info("trying to resolve absolute path", "path", inPath)
 
 	if inPath == "$HOME" || strings.HasPrefix(inPath, "$HOME"+string(os.PathSeparator)) {
 		inPath = userHomeDir() + inPath[5:]
@@ -123,7 +123,7 @@ func absPathify(logger *slog.Logger, inPath string) string {
 		return filepath.Clean(p)
 	}
 
-	logger.Error(fmt.Errorf("could not discover absolute path: %w", err).Error())
+	slog.Error(fmt.Errorf("could not discover absolute path: %w", err).Error())
 
 	return ""
 }

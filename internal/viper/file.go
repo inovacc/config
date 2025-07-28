@@ -2,6 +2,7 @@ package viper
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -61,7 +62,7 @@ func (v *Viper) findConfigFileWithFinder(finder Finder) (string, error) {
 // Search all configPaths for any config file.
 // Returns the first path that exists (and is a config file).
 func (v *Viper) findConfigFileOld() (string, error) {
-	v.logger.Info("searching for config in paths", "paths", v.configPaths)
+	slog.Info("searching for config in paths", "paths", v.configPaths)
 
 	for _, cp := range v.configPaths {
 		file := v.searchInPath(cp)
@@ -73,11 +74,11 @@ func (v *Viper) findConfigFileOld() (string, error) {
 }
 
 func (v *Viper) searchInPath(in string) (filename string) {
-	v.logger.Debug("searching for config in path", "path", in)
+	slog.Debug("searching for config in path", "path", in)
 	for _, ext := range SupportedExts {
-		v.logger.Debug("checking if file exists", "file", filepath.Join(in, v.configName+"."+ext))
+		slog.Debug("checking if file exists", "file", filepath.Join(in, v.configName+"."+ext))
 		if b, _ := exists(v.fs, filepath.Join(in, v.configName+"."+ext)); b {
-			v.logger.Debug("found file", "file", filepath.Join(in, v.configName+"."+ext))
+			slog.Debug("found file", "file", filepath.Join(in, v.configName+"."+ext))
 			return filepath.Join(in, v.configName+"."+ext)
 		}
 	}

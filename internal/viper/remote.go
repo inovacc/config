@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log/slog"
 	"reflect"
 	"slices"
 )
@@ -98,7 +99,7 @@ func (v *Viper) AddRemoteProvider(provider, endpoint, path string) error {
 		return UnsupportedRemoteProviderError(provider)
 	}
 	if provider != "" && endpoint != "" {
-		v.logger.Info("adding remote provider", "provider", provider, "endpoint", endpoint)
+		slog.Info("adding remote provider", "provider", provider, "endpoint", endpoint)
 
 		rp := &defaultRemoteProvider{
 			endpoint: endpoint,
@@ -131,7 +132,7 @@ func (v *Viper) AddSecureRemoteProvider(provider, endpoint, path, secretkeyring 
 		return UnsupportedRemoteProviderError(provider)
 	}
 	if provider != "" && endpoint != "" {
-		v.logger.Info("adding remote provider", "provider", provider, "endpoint", endpoint)
+		slog.Info("adding remote provider", "provider", provider, "endpoint", endpoint)
 
 		rp := &defaultRemoteProvider{
 			endpoint:      endpoint,
@@ -185,7 +186,7 @@ func (v *Viper) getKeyValueConfig() error {
 	for _, rp := range v.remoteProviders {
 		val, err := v.getRemoteConfig(rp)
 		if err != nil {
-			v.logger.Error(fmt.Errorf("get remote config: %w", err).Error())
+			slog.Error(fmt.Errorf("get remote config: %w", err).Error())
 
 			continue
 		}
@@ -236,7 +237,7 @@ func (v *Viper) watchKeyValueConfig() error {
 	for _, rp := range v.remoteProviders {
 		val, err := v.watchRemoteConfig(rp)
 		if err != nil {
-			v.logger.Error(fmt.Errorf("watch remote config: %w", err).Error())
+			slog.Error(fmt.Errorf("watch remote config: %w", err).Error())
 
 			continue
 		}

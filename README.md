@@ -103,7 +103,8 @@ config.SetEnvPrefix("APP")
 
 ### Secure Handling of Sensitive Values
 
-The base configuration includes built-in masking for the `AppSecret` field. You can mark additional fields as sensitive with the `sensitive:"true"` tag (though note that currently only the base `AppSecret` field is automatically masked):
+The base configuration includes built-in masking for the `AppSecret` field. You can mark additional fields as sensitive
+with the `sensitive:"true"` tag (though note that currently only the base `AppSecret` field is automatically masked):
 
 ```go
 type MyConfig struct {
@@ -118,7 +119,9 @@ secureCfg := config.GetSecureCopy()
 config.LogConfig()
 ```
 
-> **Note**: Currently, only the `AppSecret` field in the base configuration is automatically masked. Support for automatically masking custom fields marked with `sensitive:"true"` is planned for a future release. See IMPROVEMENTS.md for more details.
+> **Note**: Currently, only the `AppSecret` field in the base configuration is automatically masked. Support for
+> automatically masking custom fields marked with `sensitive:"true"` is planned for a future release. See IMPROVEMENTS.md
+> for more details.
 
 ## Project Structure
 
