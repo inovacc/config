@@ -47,7 +47,7 @@ type Config struct {
 	AppSecret  string `yaml:"appSecret" mapstructure:"appSecret" sensitive:"true"`
 	Logger     Logger `yaml:"logger" mapstructure:"logger"`
 	Service    any    `yaml:"service" mapstructure:"service"`
-	envPrefix  string `yaml:"-" mapstructure:"-"`
+	envPrefix  string
 }
 
 // InitServiceConfig loads a configuration file and binds a service-specific
@@ -83,6 +83,9 @@ func InitServiceConfig(v any, configPath string) error {
 		return fmt.Errorf("invalid config file path: %w", err)
 	}
 
+	globalConfig.ConfigFile = configFile
+	globalConfig.Service = v
+
 	// Check if a config file exists, create default if not
 	if !exists(afs, configFile) {
 		slog.Info("Configuration file not found, creating default", "path", configFile)
@@ -93,10 +96,7 @@ func InitServiceConfig(v any, configPath string) error {
 		globalConfig.Init = false
 	}
 
-	globalConfig.ConfigFile = configFile
-	globalConfig.Service = v
-
-	// Read configuration from file
+	// Read configuration from a file
 	if err = globalConfig.readInConfig(afs); err != nil {
 		return fmt.Errorf("reading config: %w", err)
 	}
@@ -177,7 +177,7 @@ func GetSecureCopy() Config {
 		configClone.AppSecret = "********"
 	}
 
-	// If the service config has sensitive fields, we should handle them too
+	// If the service config has sensitive fields, we should handle them to
 	// This requires reflection to find fields with the sensitive tag
 	return configClone
 }

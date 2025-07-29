@@ -120,7 +120,8 @@ config.LogConfig()
 ```
 
 > **Note**: Currently, only the `AppSecret` field in the base configuration is automatically masked. Support for
-> automatically masking custom fields marked with `sensitive:"true"` is planned for a future release. See IMPROVEMENTS.md
+> automatically masking custom fields marked with `sensitive:"true"` is planned for a future release. See
+> IMPROVEMENTS.md
 > for more details.
 
 ## Project Structure
