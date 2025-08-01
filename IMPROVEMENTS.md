@@ -47,7 +47,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/dyammarcano/config"
+	"github.com/inovacc/config"
 )
 
 type ServiceConfig struct {
@@ -95,7 +95,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/dyammarcano/config"
+	"github.com/inovacc/config"
 )
 
 type ServiceConfig struct {
@@ -141,7 +141,7 @@ package main
 import (
 	"log"
 
-	"github.com/dyammarcano/config"
+	"github.com/inovacc/config"
 )
 
 func main() {

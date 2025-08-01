@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/dyammarcano/config/internal/viper"
 	"github.com/google/uuid"
+	"github.com/inovacc/config/internal/viper"
 	"github.com/spf13/afero"
 	"gopkg.in/yaml.v3"
 )
