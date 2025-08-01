@@ -21,6 +21,26 @@ linters-settings:
     allow-whole-block: false
     branch-max-lines: 2
 
+  depguard:
+    list-type: allowlist
+    include-go-root: true
+    packages:
+      - github.com/google/uuid
+      - github.com/inovacc/config
+      - github.com/inovacc/config/internal/viper
+      - github.com/inovacc/config/internal/viper/internal
+      - github.com/fsnotify/fsnotify
+      - github.com/go-viper/mapstructure/v2
+      - github.com/pelletier/go-toml/v2
+      - github.com/sagikazarmark/locafero
+      - github.com/spf13/afero
+      - github.com/spf13/cast
+      - github.com/spf13/pflag
+      - github.com/stretchr/testify/assert
+      - github.com/stretchr/testify/require
+      - github.com/subosito/gotenv
+      - gopkg.in/yaml.v3
+
 linters:
   default: all
   enable:
@@ -63,3 +83,36 @@ linters:
     - paralleltest
     - gochecknoinits
     - funlen
+    - wsl
+    - cyclop
+    - err113
+    - errorlint
+    - exhaustruct
+    - forcetypeassert
+    - funcorder
+    - gocognit
+    - godot
+    - godox
+    - gosec
+    - gosmopolitan
+    - intrange
+    - ireturn
+    - lll
+    - nestif
+    - nlreturn
+    - noctx
+    - noinlineerr
+    - nonamedreturns
+    - perfsprint
+    - revive
+    - tagalign
+    - testifylint
+    - thelper
+    - usetesting
+    - wrapcheck
+    - depguard
+    - dupl
+    - goconst
+    - gocyclo
+    - whitespace
+    - wsl_v5
