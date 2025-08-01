@@ -48,7 +48,7 @@ func main() {
 		Host: "localhost",
 	}
 
-	// Load configuration from file, applying defaults if needed
+	// Load configuration from a file, applying defaults if needed
 	if err := config.InitServiceConfig(svc, "config.yaml"); err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
@@ -83,8 +83,7 @@ You can generate a default configuration file with random credentials using the 
 
 ```go
 // Generate a default config file with a zeroed MyServiceConfig
-err := config.DefaultConfig[*MyServiceConfig]("config.yaml")
-if err != nil {
+if err := config.DefaultConfig[*MyServiceConfig]("config.yaml"); err != nil {
     log.Fatal(err)
 }
 ```
@@ -142,6 +141,46 @@ github.com/inovacc/config/
     └── config.yaml   # Sample configuration
 ```
 
+## Configuration Example
+
+Below is an example of a `config.yml` file based on the module's structure:
+
+```yaml
+# Base configuration
+appID: 7c75eaa3-81f4-434f-b774-5208270525cd
+appSecret: 27fb1f22-6242-4e69-b04b-0355b87e8ee4
+
+# Logger configuration
+logger:
+  logLevel: INFO  # Can be DEBUG, INFO, WARN, WARNING, or ERROR
+
+# Service-specific configuration
+service:
+  # Example for a web service
+  host: localhost
+  port: 8080
+  timeout: 30s
+
+  # Database configuration example
+  database:
+    host: db.example.com
+    port: 5432
+    username: dbuser
+    password: dbpass  # sensitive value
+    name: myapp
+    maxConnections: 10
+
+  # Feature flags example
+  features:
+    enableCache: true
+    enableMetrics: true
+
+  # API configuration example
+  api:
+    rateLimitPerMinute: 100
+    authRequired: true
+```
+
 ## Future Improvements
 
 The module has several planned improvements documented in the IMPROVEMENTS.md file, including:
@@ -155,3 +194,7 @@ The module has several planned improvements documented in the IMPROVEMENTS.md fi
 - Comprehensive testing: More tests for edge cases
 
 For more details, see the [IMPROVEMENTS.md](IMPROVEMENTS.md) file.
+
+## Acknowledgments
+
+This project is based on a customized version of [Viper](https://github.com/spf13/viper), originally created by Steve Francia ([@spf13](https://github.com/spf13)). We would like to express our gratitude to Steve and all the contributors to the Viper project for their excellent work.
