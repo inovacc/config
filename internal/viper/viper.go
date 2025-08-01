@@ -41,7 +41,7 @@ import (
 	"github.com/spf13/cast"
 	"github.com/spf13/pflag"
 
-	"github.com/dyammarcano/config/internal/viper/internal/features"
+	"github.com/inovacc/config/internal/viper/internal/features"
 )
 
 // ConfigMarshalError happens when failing to marshal the configuration.

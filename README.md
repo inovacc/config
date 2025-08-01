@@ -1,4 +1,4 @@
-[![Test](https://github.com/dyammarcano/config/actions/workflows/test.yml/badge.svg)](https://github.com/dyammarcano/config/actions/workflows/test.yml)
+[![Test](https://github.com/inovacc/config/actions/workflows/test.yml/badge.svg)](https://github.com/inovacc/config/actions/workflows/test.yml)
 
 # Config Module
 
@@ -8,7 +8,7 @@ and type-safe access to configuration values.
 ## Installation
 
 ```shell
-go get github.com/dyammarcano/config
+go get github.com/inovacc/config
 ```
 
 ## Features
@@ -33,7 +33,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/dyammarcano/config"
+	"github.com/inovacc/config"
 )
 
 type ServiceConfig struct {
@@ -127,7 +127,7 @@ config.LogConfig()
 ## Project Structure
 
 ```text
-github.com/dyammarcano/config/
+github.com/inovacc/config/
 ├── config.go         # Main implementation
 ├── config_test.go    # Tests
 ├── go.mod            # Module definition
