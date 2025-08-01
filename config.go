@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -89,10 +90,12 @@ func InitServiceConfig(v any, configPath string) error {
 
 	// Check if a config file exists, create default if not
 	if !exists(afs, configFile) {
-		slog.Info("Configuration file not found, creating default", "path", configFile)
+		slog.Warn("Configuration file not found, creating default, please verify", "path", configFile)
 		if err := defaultConfig(configPath); err != nil {
 			return fmt.Errorf("writing default config: %w", err)
 		}
+
+		return errors.New("configuration file not found, please verify")
 	}
 
 	// Read configuration from a file
