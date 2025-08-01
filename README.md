@@ -146,39 +146,15 @@ github.com/inovacc/config/
 Below is an example of a `config.yml` file based on the module's structure:
 
 ```yaml
-# Base configuration
-appID: 7c75eaa3-81f4-434f-b774-5208270525cd
-appSecret: 27fb1f22-6242-4e69-b04b-0355b87e8ee4
-
-# Logger configuration
+appversion: 0.0.0-development
+environment: dev
+appID: 3222706d-aa89-4737-a6e3-46d29a7b8b02
+appSecret: a6e780be-8b0b-4f5d-b907-72ae0d651eb8
 logger:
-  logLevel: INFO  # Can be DEBUG, INFO, WARN, WARNING, or ERROR
-
-# Service-specific configuration
+  logLevel: DEBUG
 service:
-  # Example for a web service
-  host: localhost
-  port: 8080
-  timeout: 30s
-
-  # Database configuration example
-  database:
-    host: db.example.com
-    port: 5432
-    username: dbuser
-    password: dbpass  # sensitive value
-    name: myapp
-    maxConnections: 10
-
-  # Feature flags example
-  features:
-    enableCache: true
-    enableMetrics: true
-
-  # API configuration example
-  api:
-    rateLimitPerMinute: 100
-    authRequired: true
+  username: ""
+  password: ""
 ```
 
 ## Future Improvements

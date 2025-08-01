@@ -40,14 +40,15 @@ type Logger struct {
 // Config represents the global application configuration, including base
 // metadata and a generic field for service-specific configuration.
 type Config struct {
-	viper      *viper.Viper
-	ConfigFile string `yaml:"-" mapstructure:"-"`
-	Init       bool   `yaml:"-" mapstructure:"-"`
-	AppID      string `yaml:"appID" mapstructure:"appID"`
-	AppSecret  string `yaml:"appSecret" mapstructure:"appSecret" sensitive:"true"`
-	Logger     Logger `yaml:"logger" mapstructure:"logger"`
-	Service    any    `yaml:"service" mapstructure:"service"`
-	envPrefix  string
+	viper       *viper.Viper
+	envPrefix   string
+	Environment string `yaml:"environment" mapstructure:"environment"`
+	AppVersion  string
+	ConfigFile  string `yaml:"-" mapstructure:"-"`
+	AppID       string `yaml:"appID" mapstructure:"appID"`
+	AppSecret   string `yaml:"appSecret" mapstructure:"appSecret" sensitive:"true"`
+	Logger      Logger `yaml:"logger" mapstructure:"logger"`
+	Service     any    `yaml:"service" mapstructure:"service"`
 }
 
 // InitServiceConfig loads a configuration file and binds a service-specific
@@ -89,11 +90,9 @@ func InitServiceConfig(v any, configPath string) error {
 	// Check if a config file exists, create default if not
 	if !exists(afs, configFile) {
 		slog.Info("Configuration file not found, creating default", "path", configFile)
-		globalConfig.Init = true
 		if err := defaultConfig(configPath); err != nil {
 			return fmt.Errorf("writing default config: %w", err)
 		}
-		globalConfig.Init = false
 	}
 
 	// Read configuration from a file
@@ -212,7 +211,6 @@ func LogConfig() {
 func DefaultConfig[T any](configPath string) error {
 	var zero T
 
-	globalConfig.Init = true
 	globalConfig.Service = zero
 
 	return defaultConfig(configPath)
@@ -233,6 +231,14 @@ func (c *Config) defaultValues() error {
 		slog.Debug("Generated new AppSecret")
 	} else if len(c.AppSecret) < 12 {
 		return fmt.Errorf("invalid AppSecret: must be at least 12 characters long, got %d characters", len(c.AppSecret))
+	}
+
+	if c.Environment == "" {
+		c.Environment = "dev"
+	}
+
+	if c.AppVersion == "" {
+		c.AppVersion = "0.0.0-development"
 	}
 
 	// Configure logging
