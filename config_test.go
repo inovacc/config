@@ -43,8 +43,6 @@ const testFile = "./testdata/config.yaml"
 
 // setupTestDir creates a temporary directory for testing
 func setupTestDir(t *testing.T) (string, func()) {
-	t.Helper()
-
 	tempDir, err := os.MkdirTemp("", "config-test-*")
 	require.NoError(t, err)
 
@@ -57,8 +55,6 @@ func setupTestDir(t *testing.T) (string, func()) {
 
 // createTestConfig creates a test configuration file
 func createTestConfig(t *testing.T, dir string, filename string, content string) string {
-	t.Helper()
-
 	path := filepath.Join(dir, filename)
 	err := os.WriteFile(path, []byte(content), 0644)
 	require.NoError(t, err)
@@ -144,7 +140,7 @@ func TestGetServiceConfigTypeMismatch(t *testing.T) {
 }
 
 // TestValidationRules tests the validation rules for AppID, AppSecret, and LogLevel
-func TestValidationRules(t *testing.T) {
+func TestValidationRules1(t *testing.T) {
 	tempDir, cleanup := setupTestDir(t)
 	defer cleanup()
 
@@ -161,8 +157,9 @@ service:
 	configPath := createTestConfig(t, tempDir, "invalid_appid.yaml", configContent)
 
 	err := InitServiceConfig(&customService{}, configPath)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid AppID")
+	if assert.Error(t, err) {
+		assert.Contains(t, err.Error(), "invalid AppID")
+	}
 
 	// Test invalid AppSecret
 	configContent = `
@@ -177,8 +174,9 @@ service:
 	configPath = createTestConfig(t, tempDir, "invalid_appsecret.yaml", configContent)
 
 	err = InitServiceConfig(&customService{}, configPath)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid AppSecret")
+	if assert.Error(t, err) {
+		assert.Contains(t, err.Error(), "invalid AppSecret")
+	}
 
 	// Test invalid LogLevel
 	configContent = `
@@ -193,8 +191,34 @@ service:
 	configPath = createTestConfig(t, tempDir, "invalid_loglevel.yaml", configContent)
 
 	err = InitServiceConfig(&customService{}, configPath)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "unknown log level")
+	if assert.Error(t, err) {
+		assert.Contains(t, err.Error(), "unknown log level")
+	}
+}
+
+func TestValidationRules2(t *testing.T) {
+	tempDir, cleanup := setupTestDir(t)
+	defer cleanup()
+
+	cases := []struct {
+		name    string
+		content string
+		wantErr string
+	}{
+		{"invalid AppID", "...", "invalid AppID"},
+		{"invalid AppSecret", "...", "invalid AppSecret"},
+		{"invalid LogLevel", "...", "unknown log level"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			configPath := createTestConfig(t, tempDir, "test.yaml", tc.content)
+			err := InitServiceConfig(&customService{}, configPath)
+			if assert.Error(t, err) {
+				assert.Contains(t, err.Error(), tc.wantErr)
+			}
+		})
+	}
 }
 
 // TestGetSecureCopy tests the GetSecureCopy function
@@ -268,6 +292,7 @@ logger:
 	require.NoError(t, err)
 
 	err = InitServiceConfig(&customService{}, configPath)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "unsupported config file extension")
+	if assert.Error(t, err) {
+		assert.Contains(t, err.Error(), "unsupported config file extension")
+	}
 }

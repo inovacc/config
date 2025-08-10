@@ -38,13 +38,20 @@ type Logger struct {
 	LogLevel string `yaml:"logLevel" mapstructure:"logLevel"`
 }
 
-// Config represents the global application configuration, including base
-// metadata and a generic field for service-specific configuration.
+// Config represents the global application configuration.
+//
+// Fields:
+//   - Environment: The current environment (e.g., "dev", "prod").
+//   - AppVersion: The application version.
+//   - AppID: Unique application identifier.
+//   - AppSecret: Secret key for the application (sensitive).
+//   - Logger: Structured logging configuration.
+//   - Service: Service-specific configuration.
 type Config struct {
 	viper       *viper.Viper
 	envPrefix   string
 	Environment string `yaml:"environment" mapstructure:"environment"`
-	AppVersion  string
+	AppVersion  string `yaml:"-" mapstructure:"-"`
 	ConfigFile  string `yaml:"-" mapstructure:"-"`
 	AppID       string `yaml:"appID" mapstructure:"appID"`
 	AppSecret   string `yaml:"appSecret" mapstructure:"appSecret" sensitive:"true"`
@@ -91,11 +98,10 @@ func InitServiceConfig(v any, configPath string) error {
 	// Check if a config file exists, create default if not
 	if !exists(afs, configFile) {
 		slog.Warn("Configuration file not found, creating default, please verify", "path", configFile)
-		if err := defaultConfig(configPath); err != nil {
-			return fmt.Errorf("writing default config: %w", err)
-		}
 
-		return errors.New("configuration file not found, please verify")
+		if err := defaultConfig(configPath); err != nil {
+			return errors.New("configuration file not found, please verify")
+		}
 	}
 
 	// Read configuration from a file
