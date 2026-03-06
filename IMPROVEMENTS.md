@@ -33,6 +33,7 @@ This document tracks improvements made to the config module and planned future w
 
 - `writeToFile` now writes to a temporary file first, then renames to the target path
 - Prevents data loss if encoding fails or the process crashes mid-write
+- Supports both YAML and JSON output based on file extension
 
 ### 6. Custom Validation Rules
 
@@ -46,21 +47,32 @@ This document tracks improvements made to the config module and planned future w
 - Profile is determined by the `Environment` field value
 - Profile file is optional — if it doesn't exist, base config is used as-is
 
-### 8. Test Suite
+### 8. Configuration Reloading
+
+- `WatchConfig()` watches the config file for changes using fsnotify
+- On change: re-reads config, reloads profile, runs validators, invokes optional callback
+- Invalid config changes are logged and rejected (previous valid config is preserved)
+
+### 9. JSON Support
+
+- Config struct has both `yaml` and `json` struct tags
+- `writeToFile` encodes as JSON when file extension is `.json`, YAML otherwise
+- Full test coverage for JSON: init, default generation, profile merging
+
+### 10. Test Suite
 
 - Comprehensive table-driven tests with proper global state isolation via `resetGlobalConfig(t)`
-- Tests for: validation rules, secure copy, env var overrides, error handling, type mismatches, multiple init calls, reflection-based masking, custom validators, profile loading
+- Tests for: validation rules, secure copy, env var overrides, error handling, type mismatches, multiple init calls, reflection-based masking, custom validators, profile loading, JSON configs, file watching, concurrency
+- Example tests (`example_test.go`) serve as living documentation
 - Removed library-level `slog.SetDefault()` calls — the library no longer hijacks the application's global logger
 
-### 9. Linter Configuration
+### 11. Linter Configuration
 
 - Cleaned up `.golangci.yml` — removed contradictory enable/disable entries
 - Uses `default: all` with only a `disable` block
 
 ## Future Improvements
 
-1. **Configuration Reloading**: Watch configuration files for changes and automatically reload.
+1. **Configuration Versioning**: Support for versioning configuration files and migrating between versions.
 
-2. **Configuration Versioning**: Support for versioning configuration files and migrating between versions.
-
-3. **Configuration Encryption**: Support for encrypting sensitive configuration values at rest.
+2. **Configuration Encryption**: Support for encrypting sensitive configuration values at rest.

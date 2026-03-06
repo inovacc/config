@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/inovacc/config/internal/viper"
 	"github.com/stretchr/testify/assert"
@@ -751,4 +752,144 @@ func TestAtomicWriteToFile(t *testing.T) {
 	for _, e := range entries {
 		assert.False(t, strings.HasPrefix(e.Name(), ".config-"), "temp file left behind: %s", e.Name())
 	}
+}
+
+// --- JSON config file tests ---
+
+const testJSONFile = "./testdata/config.json"
+
+// TestInitServiceConfigJSON tests loading a JSON config file
+func TestInitServiceConfigJSON(t *testing.T) {
+	resetGlobalConfig(t)
+
+	err := InitServiceConfig(&customService{}, testJSONFile)
+	require.NoError(t, err)
+
+	cfg, err := GetServiceConfig[*customService]()
+	require.NoError(t, err)
+	assert.Equal(t, "json-user", cfg.Username)
+	assert.Equal(t, "json-pass", cfg.Password)
+
+	base := GetBaseConfig()
+	assert.Equal(t, "json-app-id-12345678", base.AppID)
+	assert.Equal(t, "INFO", base.Logger.LogLevel)
+}
+
+// TestDefaultConfigJSON tests generating a default JSON config file
+func TestDefaultConfigJSON(t *testing.T) {
+	resetGlobalConfig(t)
+	tempDir := setupTestDir(t)
+
+	configPath := filepath.Join(tempDir, "config.json")
+
+	err := DefaultConfig[*anotherService](configPath)
+	require.NoError(t, err)
+
+	// Verify the file was created and is valid JSON
+	data, err := os.ReadFile(configPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "appID")
+
+	// Init with the generated JSON config
+	err = InitServiceConfig(&anotherService{}, configPath)
+	require.NoError(t, err)
+
+	cfg := GetBaseConfig()
+	assert.NotEmpty(t, cfg.AppID)
+	assert.Equal(t, "DEBUG", cfg.Logger.LogLevel)
+}
+
+// TestConfigProfileJSON tests profile loading with JSON files
+func TestConfigProfileJSON(t *testing.T) {
+	resetGlobalConfig(t)
+	tempDir := setupTestDir(t)
+
+	baseContent := `{
+  "appID": "json-app-id-12345678",
+  "appSecret": "json-secret-123456789012",
+  "environment": "staging",
+  "logger": {"logLevel": "DEBUG"},
+  "service": {"username": "base-user", "password": "base-pass"}
+}`
+	createTestConfig(t, tempDir, "config.json", baseContent)
+
+	profileContent := `{
+  "logger": {"logLevel": "WARN"},
+  "service": {"username": "staging-user"}
+}`
+	createTestConfig(t, tempDir, "config.staging.json", profileContent)
+
+	configPath := filepath.Join(tempDir, "config.json")
+	err := InitServiceConfig(&customService{}, configPath)
+	require.NoError(t, err)
+
+	cfg := GetBaseConfig()
+	assert.Equal(t, "WARN", cfg.Logger.LogLevel)
+
+	svc, err := GetServiceConfig[*customService]()
+	require.NoError(t, err)
+	assert.Equal(t, "staging-user", svc.Username)
+}
+
+// --- WatchConfig test ---
+
+// TestWatchConfig tests that WatchConfig detects file changes
+func TestWatchConfig(t *testing.T) {
+	resetGlobalConfig(t)
+	tempDir := setupTestDir(t)
+
+	configContent := `
+appID: validappid12345
+appSecret: validappsecret12345
+logger:
+  logLevel: DEBUG
+service:
+  username: original
+  password: testpass
+`
+	configPath := createTestConfig(t, tempDir, "config.yaml", configContent)
+
+	err := InitServiceConfig(&customService{}, configPath)
+	require.NoError(t, err)
+
+	cfg, err := GetServiceConfig[*customService]()
+	require.NoError(t, err)
+	assert.Equal(t, "original", cfg.Username)
+
+	// Start watching
+	reloaded := make(chan struct{}, 1)
+	WatchConfig(func() {
+		select {
+		case reloaded <- struct{}{}:
+		default:
+		}
+	})
+
+	// Modify the config file
+	updatedContent := `
+appID: validappid12345
+appSecret: validappsecret12345
+logger:
+  logLevel: INFO
+service:
+  username: updated
+  password: testpass
+`
+	err = os.WriteFile(configPath, []byte(updatedContent), 0644)
+	require.NoError(t, err)
+
+	// Wait for reload callback
+	select {
+	case <-reloaded:
+		// success
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for config reload")
+	}
+
+	cfg, err = GetServiceConfig[*customService]()
+	require.NoError(t, err)
+	assert.Equal(t, "updated", cfg.Username)
+
+	base := GetBaseConfig()
+	assert.Equal(t, "INFO", base.Logger.LogLevel)
 }

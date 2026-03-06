@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/google/uuid"
 	"github.com/inovacc/config/internal/viper"
 	"github.com/spf13/afero"
@@ -36,7 +38,7 @@ func init() {
 
 // Logger defines the configuration for structured logging.
 type Logger struct {
-	LogLevel string `yaml:"logLevel" mapstructure:"logLevel"`
+	LogLevel string `yaml:"logLevel" json:"logLevel" mapstructure:"logLevel"`
 }
 
 // ValidatorFunc is a function that validates the configuration.
@@ -57,13 +59,13 @@ type Config struct {
 	viper       *viper.Viper
 	envPrefix   string
 	validators  []ValidatorFunc
-	Environment string `yaml:"environment" mapstructure:"environment"`
-	AppVersion  string `yaml:"-" mapstructure:"-"`
-	ConfigFile  string `yaml:"-" mapstructure:"-"`
-	AppID       string `yaml:"appID" mapstructure:"appID"`
-	AppSecret   string `yaml:"appSecret" mapstructure:"appSecret" sensitive:"true"`
-	Logger      Logger `yaml:"logger" mapstructure:"logger"`
-	Service     any    `yaml:"service" mapstructure:"service"`
+	Environment string `yaml:"environment" json:"environment" mapstructure:"environment"`
+	AppVersion  string `yaml:"-" json:"-" mapstructure:"-"`
+	ConfigFile  string `yaml:"-" json:"-" mapstructure:"-"`
+	AppID       string `yaml:"appID" json:"appID" mapstructure:"appID"`
+	AppSecret   string `yaml:"appSecret" json:"appSecret" mapstructure:"appSecret" sensitive:"true"`
+	Logger      Logger `yaml:"logger" json:"logger" mapstructure:"logger"`
+	Service     any    `yaml:"service" json:"service" mapstructure:"service"`
 }
 
 // InitServiceConfig loads a configuration file and binds a service-specific
@@ -284,6 +286,55 @@ func DefaultConfig[T any](configPath string) error {
 	return defaultConfig(configPath)
 }
 
+// WatchConfig starts watching the configuration file for changes.
+// When the file is modified, it is automatically re-read and the global
+// configuration is updated. The optional onChange callback is invoked
+// after each successful reload.
+//
+// WatchConfig must be called after InitServiceConfig. It launches a
+// background goroutine and returns immediately.
+//
+// Example:
+//
+//	config.WatchConfig(func() {
+//	    log.Println("config reloaded")
+//	})
+func WatchConfig(onChange ...func()) {
+	mu.RLock()
+	v := globalConfig.viper
+	afs := afero.NewOsFs()
+	mu.RUnlock()
+
+	v.OnConfigChange(func(_ fsnotify.Event) {
+		mu.Lock()
+		defer mu.Unlock()
+
+		if err := v.Unmarshal(globalConfig); err != nil {
+			slog.Error("failed to unmarshal config after reload", "error", err)
+			return
+		}
+
+		if err := globalConfig.loadProfile(afs); err != nil {
+			slog.Error("failed to load profile after reload", "error", err)
+			return
+		}
+
+		if err := globalConfig.runValidators(); err != nil {
+			slog.Error("config validation failed after reload", "error", err)
+			return
+		}
+
+		slog.Info("Configuration reloaded")
+		logConfigLocked()
+
+		for _, fn := range onChange {
+			fn()
+		}
+	})
+
+	v.WatchConfig()
+}
+
 func secureCopyLocked() Config {
 	configClone := *globalConfig
 
@@ -438,20 +489,29 @@ func (c *Config) readInConfig(afs afero.Fs) error {
 
 // writeToFile writes the global config to the given file path atomically.
 // It writes to a temporary file first, then renames to the target path
-// to prevent data loss if encoding fails.
+// to prevent data loss if encoding fails. The encoding format is determined
+// by the file extension (JSON for .json, YAML otherwise).
 func writeToFile(cfgFile string) error {
 	dir := filepath.Dir(cfgFile)
 
-	tmp, err := os.CreateTemp(dir, ".config-*.yaml")
+	tmp, err := os.CreateTemp(dir, ".config-*")
 	if err != nil {
 		return fmt.Errorf("creating temp file: %w", err)
 	}
 	tmpName := tmp.Name()
 
-	encoder := yaml.NewEncoder(tmp)
-	encoder.SetIndent(2)
+	ext := strings.TrimPrefix(filepath.Ext(cfgFile), ".")
+	if ext == "json" {
+		encoder := json.NewEncoder(tmp)
+		encoder.SetIndent("", "  ")
+		err = encoder.Encode(globalConfig)
+	} else {
+		encoder := yaml.NewEncoder(tmp)
+		encoder.SetIndent(2)
+		err = encoder.Encode(globalConfig)
+	}
 
-	if err = encoder.Encode(globalConfig); err != nil {
+	if err != nil {
 		_ = tmp.Close()
 		_ = os.Remove(tmpName)
 		return fmt.Errorf("encoding config: %w", err)

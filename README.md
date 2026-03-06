@@ -154,6 +154,19 @@ logger:
 
 The profile file is optional — if it doesn't exist, the base config is used as-is.
 
+### Configuration Reloading
+
+Watch the config file for changes and automatically reload:
+
+```go
+config.WatchConfig(func() {
+    log.Println("config reloaded")
+})
+```
+
+On each file change, the library re-reads the config, merges any profile overrides, and runs custom validators.
+If validation fails, the change is rejected and the previous valid config is preserved.
+
 ## Project Structure
 
 ```text
@@ -192,7 +205,6 @@ service:
 
 The module has several planned improvements documented in the IMPROVEMENTS.md file, including:
 
-- Configuration reloading: Support for watching configuration files for changes
 - Configuration versioning: Support for versioning and migration
 - Configuration encryption: Support for encrypting sensitive values
 
