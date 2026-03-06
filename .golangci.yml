@@ -5,13 +5,6 @@ run:
 
 linters-settings:
   revive:
-    exclude:
-      - test-package
-      - package-comments
-      - unnecessary-init
-      - var-declaration
-      - builtin-shadow
-      - varnamelen
     rules:
       - name: varnamelen
         arguments: [1]
@@ -43,37 +36,6 @@ linters-settings:
 
 linters:
   default: all
-  enable:
-    - govet
-    - errcheck
-    - bodyclose
-    - copyloopvar
-    - depguard
-    - dogsled
-    - dupl
-    - errorlint
-    - gocheckcompilerdirectives
-    - goconst
-    - gocritic
-    - gocyclo
-    - godox
-    - goprintffuncname
-    - gosec
-    - intrange
-    - ineffassign
-    - lll
-    - misspell
-    - nakedret
-    - noctx
-    - nolintlint
-    - staticcheck
-    - testifylint
-    - unconvert
-    - unparam
-    - unused
-    - whitespace
-    - wsl_v5
-
   disable:
     - tagliatelle
     - gochecknoglobals

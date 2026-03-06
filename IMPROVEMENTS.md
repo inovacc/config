@@ -1,202 +1,66 @@
 # Config Module Improvements
 
-This document outlines the improvements made to the config module and provides recommendations for testing and
-validation.
+This document tracks improvements made to the config module and planned future work.
 
-## Improvements Made
+## Completed Improvements
 
-### 1. Improved Error Handling and Validation
+### 1. Error Handling and Validation
 
-- Added validation for AppID and AppSecret length
-- Made log level case-insensitive by using `strings.ToUpper`
-- Added support for common log level names (e.g., "WARN" and "WARNING")
-- Improved error messages with more details and suggestions
-- Added debug logging to provide more information during configuration
+- Added validation for AppID (>= 8 chars) and AppSecret (>= 12 chars) length
+- Made log level case-insensitive with support for common names ("WARN", "WARNING")
+- Improved error messages with details and suggestions
+- Fixed error propagation in `InitServiceConfig` — real errors from `defaultConfig` are now wrapped instead of swallowed
 
-### 2. Added Support for Environment Variable Prefixes
+### 2. Environment Variable Prefixes
 
-- Added `envPrefix` field to Config struct
-- Added `SetEnvPrefix` method to set a prefix for environment variables
-- Updated `readInConfig` to use the prefix when binding environment variables
-- Added key replacer to convert dots and hyphens to underscores in environment variable names
+- Added `SetEnvPrefix` to bind environment variables with a prefix (e.g., `APP_LOGGER_LOGLEVEL`)
+- Key replacer converts dots and hyphens to underscores in env var names
 
-### 3. Added Support for Secure Storage of Sensitive Values
+### 3. Sensitive Value Handling (Reflection-Based)
 
-- Added `sensitive:"true"` tag to AppSecret field
-- Added `GetSecureCopy` method to get a copy of the configuration with sensitive values masked
-- Added `LogConfig` method to safely log the configuration without exposing sensitive values
+- `GetSecureCopy` uses reflection to mask all fields tagged `sensitive:"true"` in both the base `Config` and the service config struct
+- `LogConfig` safely logs configuration without exposing sensitive values
+- Masking creates copies — originals are never mutated
 
-### 4. Improved Code Organization and Documentation
+### 4. Concurrency Safety
 
-- Updated README.md with comprehensive documentation
-- Updated InitServiceConfig with better documentation and logging
-- Added comments to clarify the purpose of each section
-- Improved examples to show how to use the new features
+- Added `sync.RWMutex` protecting all access to `globalConfig`
+- Write-lock on `InitServiceConfig`, `SetEnvPrefix`, `DefaultConfig`, `AddValidator`
+- Read-lock on `GetServiceConfig`, `GetBaseConfig`, `GetSecureCopy`, `LogConfig`
+- `GetBaseConfig` returns a value copy instead of a mutable pointer
 
-## Testing Recommendations
+### 5. Atomic File Writes
 
-To verify that the improvements work as expected, we recommend the following tests:
+- `writeToFile` now writes to a temporary file first, then renames to the target path
+- Prevents data loss if encoding fails or the process crashes mid-write
 
-### 1. Test Environment Variable Overrides
+### 6. Custom Validation Rules
 
-```go
-package main
+- Added `AddValidator(func(Config) error)` to register custom validation functions
+- Validators run during `InitServiceConfig` after built-in validation completes
+- Multiple validators can be registered and they run in order
 
-import (
-	"fmt"
-	"log"
-	"os"
+### 7. Configuration Profiles
 
-	"github.com/inovacc/config"
-)
+- Profile-specific config files (e.g., `config.prod.yaml`) are automatically merged on top of the base config
+- Profile is determined by the `Environment` field value
+- Profile file is optional — if it doesn't exist, base config is used as-is
 
-type ServiceConfig struct {
-	Port int    `yaml:"port"`
-	Host string `yaml:"host"`
-}
+### 8. Test Suite
 
-func main() {
-	// Set environment variables
-	os.Setenv("APP_LOGGER_LOGLEVEL", "INFO")
-	os.Setenv("APP_SERVICE_PORT", "9090")
+- Comprehensive table-driven tests with proper global state isolation via `resetGlobalConfig(t)`
+- Tests for: validation rules, secure copy, env var overrides, error handling, type mismatches, multiple init calls, reflection-based masking, custom validators, profile loading
+- Removed library-level `slog.SetDefault()` calls — the library no longer hijacks the application's global logger
 
-	// Initialize with default values
-	svc := &ServiceConfig{
-		Port: 8080,
-		Host: "localhost",
-	}
+### 9. Linter Configuration
 
-	// Set environment variable prefix
-	config.SetEnvPrefix("APP")
-
-	// Load configuration
-	if err := config.InitServiceConfig(svc, "config.yaml"); err != nil {
-		log.Fatalf("Failed to load config: %v", err)
-	}
-
-	// Get the loaded configuration
-	cfg, err := config.GetServiceConfig[*ServiceConfig]()
-	if err != nil {
-		log.Fatalf("Failed to get service config: %v", err)
-	}
-
-	// Verify that environment variables override configuration values
-	fmt.Printf("Port: %d (should be 9090)\n", cfg.Port)
-	fmt.Printf("Log Level: %s (should be INFO)\n", config.GetBaseConfig().Logger.LogLevel)
-}
-```
-
-### 2. Test Secure Handling of Sensitive Values
-
-```go
-package main
-
-import (
-	"fmt"
-	"log"
-
-	"github.com/inovacc/config"
-)
-
-type ServiceConfig struct {
-	Username string `yaml:"username"`
-	Password string `yaml:"password" sensitive:"true"`
-}
-
-func main() {
-	// Initialize with default values
-	svc := &ServiceConfig{
-		Username: "default_user",
-		Password: "default_password",
-	}
-
-	// Load configuration
-	if err := config.InitServiceConfig(svc, "config.yaml"); err != nil {
-		log.Fatalf("Failed to load config: %v", err)
-	}
-
-	// Get the loaded configuration
-	cfg, err := config.GetServiceConfig[*ServiceConfig]()
-	if err != nil {
-		log.Fatalf("Failed to get service config: %v", err)
-	}
-
-	// Get a secure copy of the configuration
-	secureCfg := config.GetSecureCopy()
-
-	// Verify that sensitive values are masked
-	fmt.Printf("Original Password: %s\n", cfg.Password)
-	fmt.Printf("Masked AppSecret: %s (should be ********)\n", secureCfg.AppSecret)
-
-	// Log the configuration safely
-	config.LogConfig()
-}
-```
-
-### 3. Test Validation
-
-```go
-package main
-
-import (
-	"log"
-
-	"github.com/inovacc/config"
-)
-
-func main() {
-	// Test invalid AppID
-	cfg := config.GetBaseConfig()
-	cfg.AppID = "short" // Too short, should fail validation
-
-	err := cfg.defaultValues()
-	if err != nil {
-		log.Printf("Expected error for short AppID: %v", err)
-	} else {
-		log.Fatal("Validation failed: short AppID should be rejected")
-	}
-
-	// Test invalid AppSecret
-	cfg.AppID = "valid-app-id"
-	cfg.AppSecret = "short" // Too short, should fail validation
-
-	err = cfg.defaultValues()
-	if err != nil {
-		log.Printf("Expected error for short AppSecret: %v", err)
-	} else {
-		log.Fatal("Validation failed: short AppSecret should be rejected")
-	}
-
-	// Test invalid log level
-	cfg.AppSecret = "valid-app-secret"
-	cfg.Logger.LogLevel = "INVALID" // Invalid log level, should fail validation
-
-	err = cfg.defaultValues()
-	if err != nil {
-		log.Printf("Expected error for invalid log level: %v", err)
-	} else {
-		log.Fatal("Validation failed: invalid log level should be rejected")
-	}
-}
-```
+- Cleaned up `.golangci.yml` — removed contradictory enable/disable entries
+- Uses `default: all` with only a `disable` block
 
 ## Future Improvements
 
-Here are some additional improvements that could be made to the config module:
+1. **Configuration Reloading**: Watch configuration files for changes and automatically reload.
 
-1. **Configuration Reloading**: Add support for watching configuration files for changes and automatically reloading the
-   configuration when changes are detected.
+2. **Configuration Versioning**: Support for versioning configuration files and migrating between versions.
 
-2. **Reflection-Based Sensitive Value Handling**: Enhance the `GetSecureCopy` method to use reflection to find all
-   fields with the `sensitive:"true"` tag, not just the AppSecret field.
-
-3. **Custom Validation Rules**: Add support for custom validation rules for configuration values.
-
-4. **Configuration Versioning**: Add support for versioning configuration files and migrating between versions.
-
-5. **Configuration Encryption**: Add support for encrypting sensitive configuration values.
-
-6. **Configuration Profiles**: Add support for different configuration profiles (e.g., development, testing,
-   production).
-
-7. **Comprehensive Testing**: Add more comprehensive tests to cover all features and edge cases.
+3. **Configuration Encryption**: Support for encrypting sensitive configuration values at rest.

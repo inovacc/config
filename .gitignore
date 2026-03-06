@@ -1,3 +1,5 @@
+.scripts/
+.claude/
 *.exe
 *.exe~
 *.dll

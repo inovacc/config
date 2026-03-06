@@ -2,12 +2,14 @@ package config
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
+	"slices"
 	"strings"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/inovacc/config/internal/viper"
@@ -15,20 +17,19 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-var globalConfig *Config
+const maskedValue = "********"
+
+var (
+	globalConfig *Config
+	mu           sync.RWMutex
+)
 
 func init() {
-	level := slog.LevelDebug
-
 	globalConfig = &Config{
 		Logger: Logger{
-			LogLevel: level.String(),
+			LogLevel: slog.LevelDebug.String(),
 		},
 	}
-
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: level,
-	})))
 
 	globalConfig.viper = viper.New()
 }
@@ -37,6 +38,11 @@ func init() {
 type Logger struct {
 	LogLevel string `yaml:"logLevel" mapstructure:"logLevel"`
 }
+
+// ValidatorFunc is a function that validates the configuration.
+// It receives a read-only copy of the Config and should return an error
+// if validation fails.
+type ValidatorFunc func(Config) error
 
 // Config represents the global application configuration.
 //
@@ -50,6 +56,7 @@ type Logger struct {
 type Config struct {
 	viper       *viper.Viper
 	envPrefix   string
+	validators  []ValidatorFunc
 	Environment string `yaml:"environment" mapstructure:"environment"`
 	AppVersion  string `yaml:"-" mapstructure:"-"`
 	ConfigFile  string `yaml:"-" mapstructure:"-"`
@@ -68,6 +75,9 @@ type Config struct {
 // Default values from the provided service config struct will be used if
 // corresponding values are not found in the configuration file.
 //
+// After loading, if a profile-specific config file exists (e.g., "config.prod.yaml"
+// when Environment is "prod"), its values are merged on top of the base config.
+//
 // Example:
 //
 //	type MyServiceConfig struct {
@@ -85,6 +95,9 @@ type Config struct {
 //	    log.Fatal(err)
 //	}
 func InitServiceConfig(v any, configPath string) error {
+	mu.Lock()
+	defer mu.Unlock()
+
 	afs := afero.NewOsFs()
 
 	configFile, err := filepath.Abs(configPath)
@@ -100,7 +113,7 @@ func InitServiceConfig(v any, configPath string) error {
 		slog.Warn("Configuration file not found, creating default, please verify", "path", configFile)
 
 		if err := defaultConfig(configPath); err != nil {
-			return errors.New("configuration file not found, please verify")
+			return fmt.Errorf("creating default config: %w", err)
 		}
 	}
 
@@ -109,13 +122,23 @@ func InitServiceConfig(v any, configPath string) error {
 		return fmt.Errorf("reading config: %w", err)
 	}
 
-	// Set default values and configure logging
+	// Set default values
 	if err = globalConfig.defaultValues(); err != nil {
 		return fmt.Errorf("setting default values: %w", err)
 	}
 
+	// Load profile-specific overrides
+	if err = globalConfig.loadProfile(afs); err != nil {
+		return fmt.Errorf("loading profile config: %w", err)
+	}
+
+	// Run custom validators
+	if err = globalConfig.runValidators(); err != nil {
+		return fmt.Errorf("custom validation: %w", err)
+	}
+
 	// Log the configuration (safely masking sensitive values)
-	LogConfig()
+	logConfigLocked()
 
 	return nil
 }
@@ -132,6 +155,9 @@ func InitServiceConfig(v any, configPath string) error {
 //	    log.Fatal(err)
 //	}
 func GetServiceConfig[T any]() (T, error) {
+	mu.RLock()
+	defer mu.RUnlock()
+
 	var zero T
 	val, ok := globalConfig.Service.(T)
 	if !ok {
@@ -140,16 +166,20 @@ func GetServiceConfig[T any]() (T, error) {
 	return val, nil
 }
 
-// GetBaseConfig returns a pointer to the global configuration base object.
+// GetBaseConfig returns a copy of the global configuration base object.
 //
-// This allows access to common fields like AppID, Logger, and AppSecret.
+// This allows safe read access to common fields like AppID, Logger, and AppSecret
+// without exposing the global state to mutation.
 //
 // Example:
 //
 //	cfg := config.GetBaseConfig()
 //	fmt.Println("AppID:", cfg.AppID)
-func GetBaseConfig() *Config {
-	return globalConfig
+func GetBaseConfig() Config {
+	mu.RLock()
+	defer mu.RUnlock()
+
+	return *globalConfig
 }
 
 // SetEnvPrefix sets a prefix for environment variables.
@@ -160,14 +190,49 @@ func GetBaseConfig() *Config {
 // For example, if the prefix is "APP", then the environment variable "APP_LOGGER_LOGLEVEL"
 // will override the value of "logger.logLevel" in the configuration file.
 //
+// Must be called before InitServiceConfig.
+//
 // Example:
 //
 //	config.SetEnvPrefix("APP")
 func SetEnvPrefix(prefix string) {
+	mu.Lock()
+	defer mu.Unlock()
+
 	globalConfig.envPrefix = prefix
 }
 
+// AddValidator registers a custom validation function that will be called
+// during InitServiceConfig after the built-in validation completes.
+//
+// Validators receive a read-only copy of the Config and should return an error
+// if validation fails. Multiple validators can be registered and they run in order.
+//
+// Must be called before InitServiceConfig.
+//
+// Example:
+//
+//	config.AddValidator(func(cfg config.Config) error {
+//	    svc, ok := cfg.Service.(*MyServiceConfig)
+//	    if !ok {
+//	        return fmt.Errorf("unexpected service config type")
+//	    }
+//	    if svc.Port < 1024 || svc.Port > 65535 {
+//	        return fmt.Errorf("port must be between 1024 and 65535, got %d", svc.Port)
+//	    }
+//	    return nil
+//	})
+func AddValidator(fn ValidatorFunc) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	globalConfig.validators = append(globalConfig.validators, fn)
+}
+
 // GetSecureCopy returns a copy of the configuration with sensitive values masked.
+//
+// It masks the base AppSecret field and any fields tagged with `sensitive:"true"`
+// in the service configuration struct.
 //
 // This is useful for logging or displaying the configuration without exposing
 // sensitive information like secrets or passwords.
@@ -177,17 +242,10 @@ func SetEnvPrefix(prefix string) {
 //	secureCfg := config.GetSecureCopy()
 //	fmt.Printf("%+v\n", secureCfg)
 func GetSecureCopy() Config {
-	// Create a configClone of the global config
-	configClone := *globalConfig
+	mu.RLock()
+	defer mu.RUnlock()
 
-	// Mask sensitive fields
-	if configClone.AppSecret != "" {
-		configClone.AppSecret = "********"
-	}
-
-	// If the service config has sensitive fields, we should handle them to
-	// This requires reflection to find fields with the sensitive tag
-	return configClone
+	return secureCopyLocked()
 }
 
 // LogConfig logs the configuration at debug level, masking sensitive values.
@@ -198,12 +256,10 @@ func GetSecureCopy() Config {
 //
 //	config.LogConfig()
 func LogConfig() {
-	secureCfg := GetSecureCopy()
-	slog.Debug("Current configuration",
-		"appID", secureCfg.AppID,
-		"appSecret", secureCfg.AppSecret,
-		"logLevel", secureCfg.Logger.LogLevel,
-	)
+	mu.RLock()
+	defer mu.RUnlock()
+
+	logConfigLocked()
 }
 
 // DefaultConfig generates a base configuration file with random credentials and
@@ -218,11 +274,35 @@ func LogConfig() {
 //	    log.Fatal(err)
 //	}
 func DefaultConfig[T any](configPath string) error {
+	mu.Lock()
+	defer mu.Unlock()
+
 	var zero T
 
 	globalConfig.Service = zero
 
 	return defaultConfig(configPath)
+}
+
+func secureCopyLocked() Config {
+	configClone := *globalConfig
+
+	if configClone.AppSecret != "" {
+		configClone.AppSecret = maskedValue
+	}
+
+	configClone.Service = maskSensitiveFields(configClone.Service)
+
+	return configClone
+}
+
+func logConfigLocked() {
+	secureCfg := secureCopyLocked()
+	slog.Debug("Current configuration",
+		"appID", secureCfg.AppID,
+		"appSecret", secureCfg.AppSecret,
+		"logLevel", secureCfg.Logger.LogLevel,
+	)
 }
 
 func (c *Config) defaultValues() error {
@@ -250,30 +330,71 @@ func (c *Config) defaultValues() error {
 		c.AppVersion = "0.0.0-development"
 	}
 
-	// Configure logging
-	opts := &slog.HandlerOptions{}
-
+	// Validate log level
 	switch strings.ToUpper(c.Logger.LogLevel) {
 	case "DEBUG", slog.LevelDebug.String():
-		opts.Level = slog.LevelDebug
 	case "INFO", slog.LevelInfo.String():
-		opts.Level = slog.LevelInfo
 	case "WARN", "WARNING", slog.LevelWarn.String():
-		opts.Level = slog.LevelWarn
 	case "ERROR", slog.LevelError.String():
-		opts.Level = slog.LevelError
 	default:
 		return fmt.Errorf("unknown log level: %q (valid values: DEBUG, INFO, WARN, ERROR)", c.Logger.LogLevel)
 	}
 
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, opts)))
-	slog.Debug("logger configured", "level", c.Logger.LogLevel)
+	return nil
+}
+
+func (c *Config) runValidators() error {
+	configCopy := *c
+	for _, fn := range c.validators {
+		if err := fn(configCopy); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// loadProfile checks for a profile-specific config file and merges its values
+// on top of the base config. For example, if Environment is "prod" and the base
+// config file is "config.yaml", it looks for "config.prod.yaml" in the same directory.
+func (c *Config) loadProfile(afs afero.Fs) error {
+	if c.Environment == "" {
+		return nil
+	}
+
+	dir := filepath.Dir(c.ConfigFile)
+	ext := filepath.Ext(c.ConfigFile)
+	base := strings.TrimSuffix(filepath.Base(c.ConfigFile), ext)
+
+	profileFile := filepath.Join(dir, base+"."+c.Environment+ext)
+
+	if !exists(afs, profileFile) {
+		return nil
+	}
+
+	slog.Info("Loading profile config", "profile", c.Environment, "file", profileFile)
+
+	data, err := afero.ReadFile(afs, profileFile)
+	if err != nil {
+		return fmt.Errorf("reading profile config %s: %w", profileFile, err)
+	}
+
+	profileExt := strings.TrimPrefix(ext, ".")
+	c.viper.SetConfigType(profileExt)
+
+	if err = c.viper.MergeConfig(bytes.NewReader(data)); err != nil {
+		return fmt.Errorf("merging profile config %s: %w", profileFile, err)
+	}
+
+	if err = c.viper.Unmarshal(globalConfig); err != nil {
+		return fmt.Errorf("unmarshalling profile config: %w", err)
+	}
+
 	return nil
 }
 
 func (c *Config) getConfigFile() (string, string, error) {
 	ext := strings.TrimPrefix(filepath.Ext(c.ConfigFile), ".")
-	if !contains([]string{"json", "yaml", "yml"}, ext) {
+	if !slices.Contains([]string{"json", "yaml", "yml"}, ext) {
 		return "", "", fmt.Errorf("unsupported config file extension: %s", ext)
 	}
 
@@ -315,20 +436,38 @@ func (c *Config) readInConfig(afs afero.Fs) error {
 	return nil
 }
 
+// writeToFile writes the global config to the given file path atomically.
+// It writes to a temporary file first, then renames to the target path
+// to prevent data loss if encoding fails.
 func writeToFile(cfgFile string) error {
-	file, err := os.Create(cfgFile)
-	if err != nil {
-		return err
-	}
-	defer func(file *os.File) {
-		if err := file.Close(); err != nil {
-			slog.Error("error closing config file", slog.String("error", err.Error()))
-		}
-	}(file)
+	dir := filepath.Dir(cfgFile)
 
-	encoder := yaml.NewEncoder(file)
+	tmp, err := os.CreateTemp(dir, ".config-*.yaml")
+	if err != nil {
+		return fmt.Errorf("creating temp file: %w", err)
+	}
+	tmpName := tmp.Name()
+
+	encoder := yaml.NewEncoder(tmp)
 	encoder.SetIndent(2)
-	return encoder.Encode(globalConfig)
+
+	if err = encoder.Encode(globalConfig); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpName)
+		return fmt.Errorf("encoding config: %w", err)
+	}
+
+	if err = tmp.Close(); err != nil {
+		_ = os.Remove(tmpName)
+		return fmt.Errorf("closing temp file: %w", err)
+	}
+
+	if err = os.Rename(tmpName, cfgFile); err != nil {
+		_ = os.Remove(tmpName)
+		return fmt.Errorf("renaming temp file: %w", err)
+	}
+
+	return nil
 }
 
 func exists(fs afero.Fs, path string) bool {
@@ -336,18 +475,56 @@ func exists(fs afero.Fs, path string) bool {
 	return err == nil && !stat.IsDir()
 }
 
-func contains(slice []string, item string) bool {
-	for _, v := range slice {
-		if v == item {
-			return true
-		}
-	}
-	return false
-}
-
 func defaultConfig(configPath string) error {
 	if err := globalConfig.defaultValues(); err != nil {
 		return err
 	}
 	return writeToFile(configPath)
+}
+
+// maskSensitiveFields returns a copy of v with all fields tagged
+// `sensitive:"true"` replaced with "********". If v is not a struct
+// pointer, it is returned unchanged.
+func maskSensitiveFields(v any) any {
+	if v == nil {
+		return v
+	}
+
+	rv := reflect.ValueOf(v)
+
+	// Dereference pointer
+	if rv.Kind() == reflect.Ptr {
+		if rv.IsNil() {
+			return v
+		}
+		rv = rv.Elem()
+	}
+
+	if rv.Kind() != reflect.Struct {
+		return v
+	}
+
+	// Create a new instance to avoid mutating the original
+	cp := reflect.New(rv.Type()).Elem()
+	cp.Set(rv)
+
+	rt := rv.Type()
+	for i := range rt.NumField() {
+		field := rt.Field(i)
+		if field.Tag.Get("sensitive") == "true" && field.Type.Kind() == reflect.String {
+			cpField := cp.Field(i)
+			if cpField.CanSet() && cpField.String() != "" {
+				cpField.SetString(maskedValue)
+			}
+		}
+	}
+
+	// Return as pointer if original was pointer
+	if reflect.ValueOf(v).Kind() == reflect.Ptr {
+		ptr := reflect.New(rv.Type())
+		ptr.Elem().Set(cp)
+		return ptr.Interface()
+	}
+
+	return cp.Interface()
 }

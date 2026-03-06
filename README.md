@@ -102,8 +102,8 @@ config.SetEnvPrefix("APP")
 
 ### Secure Handling of Sensitive Values
 
-The base configuration includes built-in masking for the `AppSecret` field. You can mark additional fields as sensitive
-with the `sensitive:"true"` tag (though note that currently only the base `AppSecret` field is automatically masked):
+Mark any string field with `sensitive:"true"` and it will be automatically masked in secure copies. This works for both
+the base `AppSecret` field and any fields in your service configuration struct:
 
 ```go
 type MyConfig struct {
@@ -111,17 +111,48 @@ type MyConfig struct {
     Password string `yaml:"password" sensitive:"true"`
 }
 
-// Get a copy with sensitive values masked
+// Get a copy with sensitive values masked (AppSecret + Password both masked)
 secureCfg := config.GetSecureCopy()
 
 // Log configuration safely
 config.LogConfig()
 ```
 
-> **Note**: Currently, only the `AppSecret` field in the base configuration is automatically masked. Support for
-> automatically masking custom fields marked with `sensitive:"true"` is planned for a future release. See
-> IMPROVEMENTS.md
-> for more details.
+### Custom Validation Rules
+
+Register custom validators that run during `InitServiceConfig` after built-in validation:
+
+```go
+config.AddValidator(func(cfg config.Config) error {
+    svc, ok := cfg.Service.(*MyServiceConfig)
+    if !ok {
+        return fmt.Errorf("unexpected service config type")
+    }
+    if svc.Port < 1024 || svc.Port > 65535 {
+        return fmt.Errorf("port must be between 1024 and 65535, got %d", svc.Port)
+    }
+    return nil
+})
+```
+
+### Configuration Profiles
+
+Profile-specific config files are automatically merged on top of the base config. The profile is determined by the
+`environment` field. For example, if `environment: prod` and the base config is `config.yaml`, the library looks for
+`config.prod.yaml` in the same directory:
+
+```yaml
+# config.yaml (base)
+environment: prod
+logger:
+  logLevel: DEBUG
+
+# config.prod.yaml (profile override — optional)
+logger:
+  logLevel: ERROR
+```
+
+The profile file is optional — if it doesn't exist, the base config is used as-is.
 
 ## Project Structure
 
@@ -162,12 +193,8 @@ service:
 The module has several planned improvements documented in the IMPROVEMENTS.md file, including:
 
 - Configuration reloading: Support for watching configuration files for changes
-- Reflection-based sensitive value handling: Enhance `GetSecureCopy` to mask all fields with the `sensitive:"true"` tag
-- Custom validation rules: Support for custom validation of configuration values
 - Configuration versioning: Support for versioning and migration
 - Configuration encryption: Support for encrypting sensitive values
-- Configuration profiles: Support for different environments (dev, test, prod)
-- Comprehensive testing: More tests for edge cases
 
 For more details, see the [IMPROVEMENTS.md](IMPROVEMENTS.md) file.
 
