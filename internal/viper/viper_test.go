@@ -1639,7 +1639,7 @@ func TestWrongDirsSearchNotFoundForMerge(t *testing.T) {
 	v.AddConfigPath(`thispathaintthere`)
 
 	err := v.MergeInConfig()
-	assert.Equal(t, reflect.TypeOf(ConfigFileNotFoundError{"", ""}), reflect.TypeOf(err))
+	assert.Equal(t, reflect.TypeFor[ConfigFileNotFoundError](), reflect.TypeOf(err))
 
 	// Even though config did not load and the error might have
 	// been ignored by the client, the default still loads
@@ -2378,7 +2378,6 @@ func TestWatchFile(t *testing.T) {
 		wg.Add(1)
 		var wgDoneOnce sync.Once // OnConfigChange is called twice on Windows
 		v.OnConfigChange(func(_ fsnotify.Event) {
-			t.Logf("config file changed")
 			wgDoneOnce.Do(func() {
 				wg.Done()
 			})
