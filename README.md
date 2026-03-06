@@ -167,22 +167,75 @@ config.WatchConfig(func() {
 On each file change, the library re-reads the config, merges any profile overrides, and runs custom validators.
 If validation fails, the change is rejected and the previous valid config is preserved.
 
+### Configuration Encryption
+
+Encrypt sensitive values at rest using AES-256-GCM. Encrypted values are stored as `ENC[base64data]` in config files and transparently decrypted during loading:
+
+```go
+// Set the encryption key (from env var, vault, etc.)
+config.SetEncryptionKey([]byte(os.Getenv("CONFIG_KEY")))
+
+// Encrypt a value for storage in a config file
+encrypted, err := config.EncryptValue("my-database-password")
+// encrypted = "ENC[base64...]"
+
+// In your config.yaml:
+// service:
+//   password: ENC[base64...]
+
+// Values are automatically decrypted during InitServiceConfig
+```
+
+### Configuration Versioning & Migration
+
+Support for versioning config files and migrating between schema versions:
+
+```go
+// Set the expected config version
+config.SetTargetVersion(3)
+
+// Register migrations (run in order during InitServiceConfig)
+config.AddMigration(1, 2, func(data map[string]any) error {
+    // Transform config data from v1 to v2
+    data["version"] = 2
+    if logger, ok := data["logger"].(map[string]any); ok {
+        logger["format"] = "json" // Add new field
+    }
+    return nil
+})
+
+config.AddMigration(2, 3, func(data map[string]any) error {
+    data["version"] = 3
+    return nil
+})
+```
+
+Add a `version` field to your config file:
+
+```yaml
+version: 1
+appID: my-app-id-12345678
+# ...
+```
+
 ## Project Structure
 
 ```text
 github.com/inovacc/config/
-├── config.go         # Main implementation
-├── config_test.go    # Tests
-├── go.mod            # Module definition
-├── go.sum            # Dependencies
-├── internal/         # Internal packages
-│   └── viper/        # Customized version of Viper
-├── LICENSE           # License information
-├── README.md         # Documentation
-├── IMPROVEMENTS.md   # Improvement suggestions and future plans
-├── Taskfile.yml      # Task runner configuration
-└── testdata/         # Test data
-    └── config.yaml   # Sample configuration
+├── config.go          # Main implementation (init, get, validate, profiles, watch)
+├── encrypt.go         # AES-256-GCM encryption/decryption for config values
+├── migrate.go         # Configuration versioning and migration chain
+├── config_test.go     # Core tests
+├── encrypt_test.go    # Encryption tests
+├── migrate_test.go    # Migration tests
+├── benchmark_test.go  # Performance benchmarks
+├── example_test.go    # Example tests (living documentation)
+├── go.mod             # Module definition
+├── internal/          # Internal packages
+│   └── viper/         # Customized version of Viper
+├── IMPROVEMENTS.md    # Completed improvements log
+├── Taskfile.yml       # Task runner configuration
+└── testdata/          # Test data (YAML and JSON samples)
 ```
 
 ## Configuration Example
@@ -201,14 +254,9 @@ service:
   password: ""
 ```
 
-## Future Improvements
+## Improvements
 
-The module has several planned improvements documented in the IMPROVEMENTS.md file, including:
-
-- Configuration versioning: Support for versioning and migration
-- Configuration encryption: Support for encrypting sensitive values
-
-For more details, see the [IMPROVEMENTS.md](IMPROVEMENTS.md) file.
+All planned improvements have been implemented. See [IMPROVEMENTS.md](IMPROVEMENTS.md) for the full list of completed features.
 
 ## Acknowledgments
 

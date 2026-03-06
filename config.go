@@ -56,9 +56,13 @@ type ValidatorFunc func(Config) error
 //   - Logger: Structured logging configuration.
 //   - Service: Service-specific configuration.
 type Config struct {
-	viper       *viper.Viper
-	envPrefix   string
-	validators  []ValidatorFunc
+	viper         *viper.Viper
+	envPrefix     string
+	encryptionKey []byte
+	targetVersion int
+	migrations    []migration
+	validators    []ValidatorFunc
+	Version     int    `yaml:"version" json:"version" mapstructure:"version"`
 	Environment string `yaml:"environment" json:"environment" mapstructure:"environment"`
 	AppVersion  string `yaml:"-" json:"-" mapstructure:"-"`
 	ConfigFile  string `yaml:"-" json:"-" mapstructure:"-"`
@@ -122,6 +126,16 @@ func InitServiceConfig(v any, configPath string) error {
 	// Read configuration from a file
 	if err = globalConfig.readInConfig(afs); err != nil {
 		return fmt.Errorf("reading config: %w", err)
+	}
+
+	// Run migrations if target version is set
+	if _, err = globalConfig.runMigrations(); err != nil {
+		return fmt.Errorf("running migrations: %w", err)
+	}
+
+	// Decrypt any encrypted values
+	if err = decryptConfigFields(globalConfig); err != nil {
+		return fmt.Errorf("decrypting config: %w", err)
 	}
 
 	// Set default values
@@ -311,6 +325,11 @@ func WatchConfig(onChange ...func()) {
 
 		if err := v.Unmarshal(globalConfig); err != nil {
 			slog.Error("failed to unmarshal config after reload", "error", err)
+			return
+		}
+
+		if err := decryptConfigFields(globalConfig); err != nil {
+			slog.Error("failed to decrypt config after reload", "error", err)
 			return
 		}
 

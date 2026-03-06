@@ -36,10 +36,12 @@ Tests rely on `testdata/config.yaml` and create temp directories for isolation. 
 - `DefaultConfig[T](path)` - Generate default config file with random credentials
 - `WatchConfig(onChange...)` - Watch config file for changes and auto-reload
 - `GetSecureCopy()` / `LogConfig()` - Masked config for safe logging
+- `SetEncryptionKey(key)` / `EncryptValue(s)` / `DecryptValue(s)` - AES-256-GCM encryption for config values stored as `ENC[base64]`
+- `SetTargetVersion(n)` / `AddMigration(from, to, fn)` - Config file versioning with migration chain
 
 **Internal Viper fork** (`internal/viper/`): Full internalized copy of spf13/viper with encoding support for YAML, JSON, TOML, and dotenv. This is not a thin wrapper - it's the complete Viper codebase maintained in-tree.
 
-**Config struct flow**: YAML/JSON file -> Viper reads/unmarshals -> `Config` struct populated (with `mapstructure`/`yaml`/`json` tags) -> `defaultValues()` validates and fills defaults -> profile overlay merged -> custom validators run.
+**Config struct flow**: YAML/JSON file -> Viper reads/unmarshals -> migrations run (if target version set) -> encrypted values decrypted (if encryption key set) -> `defaultValues()` validates and fills defaults -> profile overlay merged -> custom validators run.
 
 ## Key Patterns
 

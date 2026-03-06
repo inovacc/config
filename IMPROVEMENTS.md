@@ -71,8 +71,33 @@ This document tracks improvements made to the config module and planned future w
 - Cleaned up `.golangci.yml` — removed contradictory enable/disable entries
 - Uses `default: all` with only a `disable` block
 
+### 12. Configuration Encryption (AES-GCM)
+
+- `SetEncryptionKey(key)` sets AES-256 key (SHA-256 derived from any-length input)
+- `EncryptValue(plaintext)` returns `ENC[base64data]` format
+- `DecryptValue(ciphertext)` decrypts `ENC[...]` values transparently
+- `IsEncryptedValue(s)` checks for `ENC[...]` format
+- Encrypted values in config files are automatically decrypted during `InitServiceConfig`
+- Decryption uses reflection to walk both base config and service config fields
+- Works with both YAML and JSON config files
+- Integrated into `WatchConfig` reload path
+
+### 13. Configuration Versioning & Migration
+
+- Added `Version` field to `Config` struct (`yaml:"version" json:"version"`)
+- `SetTargetVersion(n)` sets the expected config version
+- `AddMigration(from, to, func)` registers migration functions
+- Migrations run during `InitServiceConfig` after reading config, before decryption/validation
+- Migration chain: migrations are sorted by `from` version and applied sequentially
+- Migrated data is re-read into Viper at config level (not override) so profile merges still work
+- `GetConfigVersion()` returns the current config version
+
+### 14. Benchmark Suite
+
+- Benchmarks for `GetServiceConfig`, `GetBaseConfig`, `GetSecureCopy`, `maskSensitiveFields`
+- Benchmarks for `InitServiceConfig`, `EncryptValue`, `DecryptValue`, encrypt+decrypt round-trip
+- Run with `go test -bench=. -benchmem .`
+
 ## Future Improvements
 
-1. **Configuration Versioning**: Support for versioning configuration files and migrating between versions.
-
-2. **Configuration Encryption**: Support for encrypting sensitive configuration values at rest.
+(No remaining planned items — all improvements have been implemented.)
